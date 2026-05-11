@@ -8,6 +8,17 @@ import { useData } from '@/lib/data-context'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Announcement, MediaItem } from '@/lib/mock-data'
+import { sanitizeHtml } from '@/lib/sanitize'
+
+function extractFirstImg(html: string): string | null {
+  if (!html) return null
+  const m = html.match(/<img[^>]+src="([^"]+)"/)
+  return m ? m[1] : null
+}
+
+function stripImgTags(html: string): string {
+  return html.replace(/<img[^>]*>/gi, '')
+}
 
 function PostMedia({ media }: { media: MediaItem[] }) {
   const [current, setCurrent] = useState(0)
@@ -72,12 +83,14 @@ function PostMedia({ media }: { media: MediaItem[] }) {
 
 function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: ReturnType<typeof useLang>['tr'] }) {
   const [liked, setLiked] = useState(false)
-  const [expanded, setExpanded] = useState(false)
 
-  const hasMedia = ann.media && ann.media.length > 0
-  const caption = ann.content || ''
-  const longCaption = caption.length > 120
-  const displayCaption = expanded || !longCaption ? caption : caption.slice(0, 120) + '…'
+  const hasStorageMedia = ann.media && ann.media.length > 0
+  const htmlContent = ann.htmlContent || ''
+  const embeddedImg = !hasStorageMedia ? extractFirstImg(htmlContent) : null
+  const hasImage = hasStorageMedia || !!embeddedImg
+
+  // Render rich text body without img tags (image already shown above)
+  const bodyHtml = htmlContent ? sanitizeHtml(stripImgTags(htmlContent)) : ''
 
   return (
     <article className="bg-white border-b border-gray-100">
@@ -102,8 +115,16 @@ function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: Retu
         </div>
       </div>
 
-      {/* Media */}
-      {hasMedia && <PostMedia media={ann.media} />}
+      {/* Media from storage array */}
+      {hasStorageMedia && <PostMedia media={ann.media} />}
+
+      {/* First image embedded in rich text content */}
+      {!hasStorageMedia && embeddedImg && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <div className="relative w-full aspect-square bg-gray-100">
+          <img src={embeddedImg} alt="" className="h-full w-full object-cover" loading="lazy" />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-4 px-4 pt-3 pb-1">
@@ -123,30 +144,22 @@ function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: Retu
         </Link>
       </div>
 
-      {/* Caption + title */}
+      {/* Title + body */}
       <div className="px-4 pb-3 space-y-1">
-        {/* Title as bold heading */}
         <Link href={`/announcements/${ann.id}`}>
           <h3 className="text-sm font-bold text-gray-900 leading-snug">{ann.title}</h3>
         </Link>
 
-        {/* Body text */}
-        {caption && (
-          <p className="text-sm text-gray-700 leading-relaxed">
-            {displayCaption}
-            {longCaption && !expanded && (
-              <button
-                onClick={() => setExpanded(true)}
-                className="ml-1 text-gray-400 font-medium text-xs"
-              >
-                {lang === 'en' ? 'more' : 'lebih'}
-              </button>
-            )}
-          </p>
-        )}
+        {bodyHtml ? (
+          <div
+            className="prose text-sm text-gray-700 leading-relaxed line-clamp-4"
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          />
+        ) : ann.content ? (
+          <p className="text-sm text-gray-700 leading-relaxed line-clamp-4">{ann.content}</p>
+        ) : null}
 
-        {/* Comments link */}
-        {ann.comments.length > 0 && (
+        {ann.comments.length > 0 ? (
           <Link
             href={`/announcements/${ann.id}`}
             className="block text-xs text-gray-400 hover:text-gray-600 transition-colors mt-1"
@@ -155,8 +168,7 @@ function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: Retu
               ? `View all ${ann.comments.length} comment${ann.comments.length !== 1 ? 's' : ''}`
               : `Lihat semua ${ann.comments.length} komen`}
           </Link>
-        )}
-        {ann.comments.length === 0 && (
+        ) : (
           <Link
             href={`/announcements/${ann.id}`}
             className="block text-xs text-gray-400 hover:text-emerald-600 transition-colors mt-1"

@@ -2211,7 +2211,6 @@ export default function AdminPage() {
             <RichTextEditor content={annForm.htmlContent}
               onChange={(html) => setAnnForm((p) => ({ ...p, htmlContent: html, content: html.replace(/<[^>]+>/g, ' ').trim() }))}
               placeholder={lang === 'en' ? 'Write your announcement...' : 'Tulis pengumuman anda...'} />
-            <MediaGrid form={annForm} setForm={setAnnForm} />
             {annPosted && (
               <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
                 <CheckCircle className="h-4 w-4" />{lang === 'en' ? 'Published!' : 'Diterbitkan!'}
@@ -2244,7 +2243,6 @@ export default function AdminPage() {
             </div>
             <RichTextEditor content={editAnnForm.htmlContent}
               onChange={(html) => setEditAnnForm((p) => ({ ...p, htmlContent: html, content: html.replace(/<[^>]+>/g, ' ').trim() }))} />
-            <MediaGrid form={editAnnForm} setForm={setEditAnnForm} />
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setEditingAnn(null)}>{lang === 'en' ? 'Cancel' : 'Batal'}</Button>
               <Button className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={saveEditAnn}>{lang === 'en' ? 'Save Changes' : 'Simpan'}</Button>

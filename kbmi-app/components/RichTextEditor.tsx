@@ -10,6 +10,7 @@ import {
   Bold, Italic, UnderlineIcon, List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight, ImageIcon, Heading2,
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 interface RichTextEditorProps {
   content: string
@@ -55,12 +56,20 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        const src = ev.target?.result as string
-        editor.chain().focus().setImage({ src }).run()
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { data, error } = await supabase.storage.from('media').upload(path, file)
+      if (!error && data) {
+        const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(data.path)
+        editor.chain().focus().setImage({ src: publicUrl }).run()
+      } else {
+        // fallback to base64
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          editor.chain().focus().setImage({ src: ev.target?.result as string }).run()
+        }
+        reader.readAsDataURL(file)
       }
-      reader.readAsDataURL(file)
     }
     input.click()
   }
