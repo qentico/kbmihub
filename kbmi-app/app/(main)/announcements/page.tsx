@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Pin, MessageCircle, Heart, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLang } from '@/lib/language-context'
@@ -83,6 +84,7 @@ function PostMedia({ media }: { media: MediaItem[] }) {
 
 function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: ReturnType<typeof useLang>['tr'] }) {
   const [liked, setLiked] = useState(false)
+  const router = useRouter()
 
   const hasStorageMedia = ann.media && ann.media.length > 0
   const htmlContent = ann.htmlContent || ''
@@ -93,7 +95,10 @@ function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: Retu
   const bodyHtml = htmlContent ? sanitizeHtml(stripImgTags(htmlContent)) : ''
 
   return (
-    <article className="bg-white border-b border-gray-100">
+    <article
+      className="bg-white border-b border-gray-100 cursor-pointer"
+      onClick={() => router.push(`/announcements/${ann.id}`)}
+    >
       {/* Author row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <Avatar className="h-9 w-9 shrink-0">
@@ -129,7 +134,7 @@ function PostCard({ ann, lang, tr }: { ann: Announcement; lang: string; tr: Retu
       {/* Actions */}
       <div className="flex items-center gap-4 px-4 pt-3 pb-1">
         <button
-          onClick={() => setLiked((v) => !v)}
+          onClick={(e) => { e.stopPropagation(); setLiked((v) => !v) }}
           className={`transition-colors ${liked ? 'text-red-500' : 'text-gray-700 hover:text-red-400'}`}
           aria-label="Like"
         >
