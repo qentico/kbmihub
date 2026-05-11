@@ -9,7 +9,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ error?: string }>
   signup: (name: string, email: string, password: string, dob?: string, phone?: string) => Promise<{ error?: string }>
   logout: () => void
-  updateUser: (updates: Partial<User>) => void
+  updateUser: (updates: Partial<User>) => Promise<void>
   isLoading: boolean
 }
 
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => { supabase.auth.signOut() }
 
-  const updateUser = (updates: Partial<User>) => {
+  const updateUser = async (updates: Partial<User>): Promise<void> => {
     if (!user) return
     const db: Record<string, unknown> = {}
     if (updates.name !== undefined) db.name = updates.name
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (updates.dob !== undefined) db.dob = updates.dob
     if (updates.profilePhoto !== undefined) db.profile_photo = updates.profilePhoto
     if (updates.familyMembers !== undefined) db.family_members = updates.familyMembers
-    supabase.from('profiles').update(db).eq('id', user.id).then()
+    await supabase.from('profiles').update(db).eq('id', user.id)
     setUser((prev) => prev ? { ...prev, ...updates } : prev)
   }
 

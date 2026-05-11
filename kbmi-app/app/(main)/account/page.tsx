@@ -66,8 +66,8 @@ export default function AccountPage() {
   const removeFamilyMember = (i: number) =>
     setFamilyMembers((prev) => prev.filter((_, j) => j !== i))
 
-  const handleSave = () => {
-    updateUser({
+  const handleSave = async () => {
+    await updateUser({
       name: name.trim() || user?.name,
       email: email.trim() || user?.email,
       phone,
