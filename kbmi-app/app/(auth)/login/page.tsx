@@ -81,9 +81,14 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-violet-300 uppercase tracking-wide">
-              {tr.password}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-violet-300 uppercase tracking-wide">
+                {tr.password}
+              </label>
+              <Link href="/forgot-password" className="text-xs text-violet-300 hover:text-white transition-colors">
+                {lang === 'en' ? 'Forgot password?' : 'Lupa kata laluan?'}
+              </Link>
+            </div>
             <Input
               type="password"
               value={password}
