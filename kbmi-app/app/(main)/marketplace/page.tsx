@@ -243,13 +243,24 @@ export default function MarketplacePage() {
                       : <><Circle className="h-3.5 w-3.5" />{lang === 'en' ? 'Unread' : 'Belum Baca'}</>
                     }
                   </button>
-                  <a
-                    href={`mailto:${users.find((u) => u.id === listing.sellerId)?.email ?? ''}`}
-                    className={`ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${config.contactClass}`}
-                  >
-                    <Phone className="h-3 w-3" />
-                    {tr.contact}
-                  </a>
+                  {(() => {
+                    const phone = users.find((u) => u.id === listing.sellerId)?.phone
+                    const digits = phone?.replace(/\D/g, '') ?? ''
+                    const msg = encodeURIComponent(`Hi, I'm interested in your listing: "${listing.title}"`)
+                    const href = digits ? `https://wa.me/${digits}?text=${msg}` : undefined
+                    return (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-disabled={!href}
+                        className={`ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${config.contactClass} ${!href ? 'opacity-40 pointer-events-none' : ''}`}
+                      >
+                        <Phone className="h-3 w-3" />
+                        {tr.contact}
+                      </a>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
