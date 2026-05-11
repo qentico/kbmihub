@@ -1,7 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { MOCK_USERS, User } from './mock-data'
+import { supabase } from './supabase'
+import { User } from './mock-data'
 
 interface AuthContextValue {
   user: User | null
@@ -14,70 +15,110 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const SUPER_ADMIN_EMAILS = ['qhairul.asmai@gmail.com']
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapProfile(row: any): User {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    branch: row.branch || 'Cawangan Baru',
+    avatar: row.avatar || '',
+    joinedAt: row.joined_at || '',
+    totalContributed: row.total_contributed || 0,
+    isHeadOfFamily: row.is_head_of_family || false,
+    phone: row.phone ?? undefined,
+    address: row.address ?? undefined,
+    dob: row.dob ?? undefined,
+    profilePhoto: row.profile_photo ?? undefined,
+    familyMembers: row.family_members || [],
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    const stored = localStorage.getItem('kbmi_user')
-    if (stored) {
-      try {
-        const parsed: User = JSON.parse(stored)
-        // Re-hydrate role from canonical source so localStorage tampering is ineffective
-        const canonical = MOCK_USERS.find((u) => u.id === parsed.id)
-        if (canonical) {
-          setUser({ ...parsed, role: canonical.role })
-        } else {
-          // Newly signed-up users are always members
-          setUser({ ...parsed, role: 'member' })
-        }
-      } catch {
-        localStorage.removeItem('kbmi_user')
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    if (data) {
+      setUser(mapProfile(data))
+    } else {
+      // Profile missing — create it (handles existing auth users from before migration)
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const name = (authUser.user_metadata?.name as string) || authUser.email!.split('@')[0]
+        const avatar = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+        const role = SUPER_ADMIN_EMAILS.includes(authUser.email!) ? 'super_admin' : 'member'
+        await supabase.from('profiles').upsert({
+          id: userId,
+          name,
+          email: authUser.email,
+          role,
+          branch: 'Cawangan Baru',
+          avatar,
+          joined_at: new Date().toISOString().slice(0, 10),
+          total_contributed: 0,
+        })
+        const { data: fresh } = await supabase.from('profiles').select('*').eq('id', userId).single()
+        if (fresh) setUser(mapProfile(fresh))
       }
     }
     setIsLoading(false)
-  }, [])
+  }
 
-  const login = async (email: string, _password: string) => {
-    const found = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase())
-    if (!found) return { error: 'No account found with this email.' }
-    setUser(found)
-    localStorage.setItem('kbmi_user', JSON.stringify(found))
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchProfile(session.user.id)
+      } else {
+        setIsLoading(false)
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchProfile(session.user.id)
+      } else {
+        setUser(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: error.message }
     return {}
   }
 
-  const signup = async (name: string, email: string, _password: string, dob?: string, phone?: string) => {
-    const exists = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase())
-    if (exists) return { error: 'An account with this email already exists.' }
-    const newUser: User = {
-      id: `u${Date.now()}`,
-      name,
+  const signup = async (name: string, email: string, password: string, dob?: string, phone?: string) => {
+    const { error } = await supabase.auth.signUp({
       email,
-      role: 'member',
-      branch: 'Cawangan Baru',
-      avatar: name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
-      joinedAt: new Date().toISOString().slice(0, 10),
-      totalContributed: 0,
-      ...(dob && { dob }),
-      ...(phone && { phone }),
-    }
-    setUser(newUser)
-    localStorage.setItem('kbmi_user', JSON.stringify(newUser))
+      password,
+      options: { data: { name, dob: dob || null, phone: phone || null } },
+    })
+    if (error) return { error: error.message }
     return {}
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('kbmi_user')
-  }
+  const logout = () => { supabase.auth.signOut() }
 
   const updateUser = (updates: Partial<User>) => {
-    setUser((prev) => {
-      if (!prev) return prev
-      const updated = { ...prev, ...updates }
-      localStorage.setItem('kbmi_user', JSON.stringify(updated))
-      return updated
-    })
+    if (!user) return
+    const db: Record<string, unknown> = {}
+    if (updates.name !== undefined) db.name = updates.name
+    if (updates.branch !== undefined) db.branch = updates.branch
+    if (updates.phone !== undefined) db.phone = updates.phone
+    if (updates.address !== undefined) db.address = updates.address
+    if (updates.dob !== undefined) db.dob = updates.dob
+    if (updates.profilePhoto !== undefined) db.profile_photo = updates.profilePhoto
+    if (updates.familyMembers !== undefined) db.family_members = updates.familyMembers
+    supabase.from('profiles').update(db).eq('id', user.id)
+    setUser((prev) => prev ? { ...prev, ...updates } : prev)
   }
 
   return (

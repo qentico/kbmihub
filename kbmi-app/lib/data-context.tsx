@@ -1,34 +1,31 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { supabase } from './supabase'
 import {
-  MOCK_ANNOUNCEMENTS, MOCK_EVENTS, MOCK_USERS, MOCK_DRIVES, MOCK_NOTIFICATIONS, MOCK_FEEDBACK, MOCK_LISTINGS, MOCK_CHATS, MOCK_EXCO, MOCK_AUDIT, MOCK_POLLS,
-  Announcement, Event, User, ContributionDrive, RSVP, MediaItem, Expense, Notification, FeedbackItem, MarketplaceListing, GroupChat, ExcoMember, AuditEntry, AuditCategory, Poll,
+  Announcement, Event, User, ContributionDrive, RSVP, Expense, Notification,
+  FeedbackItem, MarketplaceListing, GroupChat, ExcoMember, AuditEntry, AuditCategory, Poll,
 } from './mock-data'
 
 interface DataContextValue {
-  // Announcements
   announcements: Announcement[]
   addAnnouncement: (ann: Omit<Announcement, 'id' | 'comments'>) => void
   updateAnnouncement: (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments'>>) => void
   deleteAnnouncement: (id: string) => void
   addComment: (announcementId: string, comment: Announcement['comments'][0]) => void
 
-  // Events
   events: Event[]
   addEvent: (ev: Omit<Event, 'id' | 'rsvps'>) => void
   updateEvent: (id: string, updates: Partial<Omit<Event, 'id' | 'rsvps'>>) => void
   deleteEvent: (id: string) => void
   updateRSVP: (eventId: string, rsvp: RSVP) => void
 
-  // Users
   users: User[]
   toggleHeadOfFamily: (userId: string) => void
   setUserRole: (userId: string, role: 'super_admin' | 'admin' | 'member') => void
   deleteUser: (userId: string) => void
   updateUserById: (id: string, updates: Partial<User>) => void
 
-  // Drives
   drives: ContributionDrive[]
   addDrive: (drive: Omit<ContributionDrive, 'id' | 'contributions' | 'status' | 'expenses'>) => void
   updateDrive: (id: string, updates: Partial<Omit<ContributionDrive, 'id' | 'contributions' | 'expenses'>>) => void
@@ -39,36 +36,30 @@ interface DataContextValue {
   removeContribution: (driveId: string, contribId: string) => void
   addExpense: (driveId: string, expense: Omit<Expense, 'id'>) => void
 
-  // Notifications
   notifications: Notification[]
   markNotificationRead: (notifId: string, userId: string) => void
   markAllRead: (userId: string) => void
 
-  // Feedback
   feedback: FeedbackItem[]
   addFeedback: (item: Omit<FeedbackItem, 'id' | 'status'>) => void
   markFeedbackResolved: (id: string, byName: string) => void
   reopenFeedback: (id: string, byName: string) => void
   deleteFeedback: (id: string) => void
 
-  // Marketplace
   listings: MarketplaceListing[]
   addListing: (listing: Omit<MarketplaceListing, 'id' | 'createdAt'>) => void
   deleteListing: (id: string) => void
   pushExpiryNotification: (listing: MarketplaceListing) => void
   toggleListingRead: (listingId: string, userId: string) => void
 
-  // Social Media / Group Chats
   chats: GroupChat[]
   addChat: (chat: Omit<GroupChat, 'id'>) => void
   updateChat: (id: string, updates: Partial<Omit<GroupChat, 'id'>>) => void
   deleteChat: (id: string) => void
 
-  // Finance override (super admin manual figures)
   financeStats: { collected: number; spent: number } | null
   setFinanceStats: (stats: { collected: number; spent: number } | null) => void
 
-  // Exco
   excoMembers: ExcoMember[]
   excoTerm: string
   setExcoTerm: (term: string) => void
@@ -76,11 +67,9 @@ interface DataContextValue {
   updateExcoMember: (id: string, updates: Partial<Omit<ExcoMember, 'id'>>) => void
   deleteExcoMember: (id: string) => void
 
-  // Audit log
   auditLog: AuditEntry[]
   addAuditEntry: (activity: string, initiatedBy: string, category: AuditCategory) => void
 
-  // Polls
   polls: Poll[]
   addPoll: (poll: Omit<Poll, 'id' | 'createdAt'>) => void
   updatePoll: (id: string, updates: Partial<Omit<Poll, 'id' | 'createdAt'>>) => void
@@ -90,278 +79,489 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null)
 
-export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(MOCK_ANNOUNCEMENTS)
-  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS)
-  const [users, setUsers] = useState<User[]>(MOCK_USERS)
-  const [drives, setDrives] = useState<ContributionDrive[]>(MOCK_DRIVES)
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
-  const [feedback, setFeedback] = useState<FeedbackItem[]>(MOCK_FEEDBACK)
-  const [listings, setListings] = useState<MarketplaceListing[]>(MOCK_LISTINGS)
-  const [chats, setChats] = useState<GroupChat[]>(MOCK_CHATS)
-  const [financeStats, setFinanceStats] = useState<{ collected: number; spent: number } | null>(null)
-  const [excoMembers, setExcoMembers] = useState<ExcoMember[]>(MOCK_EXCO)
-  const [excoTerm, setExcoTerm] = useState('Term 2025')
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>(MOCK_AUDIT)
-  const [polls, setPolls] = useState<Poll[]>(MOCK_POLLS)
+// ── Row mappers ───────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapAnnouncement(r: any): Announcement {
+  return {
+    id: r.id, title: r.title, content: r.content || '',
+    htmlContent: r.html_content, media: r.media || [],
+    authorId: r.author_id || '', authorName: r.author_name || '',
+    createdAt: r.created_at || '', isPinned: r.is_pinned || false,
+    comments: (r.comments || []).map(mapComment),
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapComment(r: any) {
+  return { id: r.id, authorId: r.author_id || '', authorName: r.author_name || '', content: r.content || '', createdAt: r.created_at || '' }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEvent(r: any): Event {
+  return {
+    id: r.id, title: r.title, description: r.description || '',
+    htmlContent: r.html_content, media: r.media || [],
+    date: r.date || '', time: r.time, location: r.location,
+    createdBy: r.created_by || '', rsvps: (r.rsvps || []).map(mapRSVP),
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRSVP(r: any): RSVP { return { userId: r.user_id, userName: r.user_name, status: r.status } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapUser(r: any): User {
+  return {
+    id: r.id, name: r.name, email: r.email, role: r.role,
+    branch: r.branch || 'Cawangan Baru', avatar: r.avatar || '',
+    joinedAt: r.joined_at || '', totalContributed: r.total_contributed || 0,
+    isHeadOfFamily: r.is_head_of_family || false,
+    phone: r.phone ?? undefined, address: r.address ?? undefined,
+    dob: r.dob ?? undefined, profilePhoto: r.profile_photo ?? undefined,
+    familyMembers: r.family_members || [],
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapDrive(r: any): ContributionDrive {
+  return {
+    id: r.id, title: r.title, description: r.description || '',
+    amountType: r.amount_type || 'flexible', fixedAmount: r.fixed_amount,
+    minimumAmount: r.minimum_amount, targetAmount: r.target_amount || 0,
+    payNowName: r.pay_now_name || '', payNowNumber: r.pay_now_number || '',
+    deadline: r.deadline || '', specialInstructions: r.special_instructions,
+    status: r.status || 'active', hofOnly: r.hof_only || false,
+    expenses: r.expenses || [], contributions: (r.contributions || []).map(mapContrib),
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapContrib(r: any) {
+  return { id: r.id, userId: r.user_id || '', userName: r.user_name || '', amount: r.amount || 0, paidAt: r.paid_at || '', confirmed: r.confirmed || false, confirmedBy: r.confirmed_by }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapFeedback(r: any): FeedbackItem {
+  return {
+    id: r.id, userId: r.user_id || '', userName: r.user_name || '',
+    content: r.content || '', contactDetails: r.contact_details || '',
+    requestFollowUp: r.request_follow_up || false, status: r.status || 'open',
+    createdAt: r.created_at || '', lastActionBy: r.last_action_by,
+    lastActionAt: r.last_action_at, lastAction: r.last_action,
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapListing(r: any): MarketplaceListing {
+  return {
+    id: r.id, sellerId: r.seller_id || '', sellerName: r.seller_name || '',
+    title: r.title || '', description: r.description || '',
+    htmlDescription: r.html_description, price: r.price || '',
+    category: r.category, createdAt: r.created_at || '',
+    expiresAt: r.expires_at || '', photos: r.photos || [], readBy: r.read_by || [],
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapChat(r: any): GroupChat { return { id: r.id, name: r.name, platform: r.platform, url: r.url, description: r.description || '' } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapExco(r: any): ExcoMember { return { id: r.id, userId: r.user_id || '', name: r.name, position: r.position, avatar: r.avatar || '', since: r.since } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapAudit(r: any): AuditEntry { return { id: r.id, category: r.category, activity: r.activity, initiatedBy: r.initiated_by, timestamp: r.timestamp } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPoll(r: any): Poll {
+  return {
+    id: r.id, question: r.question, allowMultiple: r.allow_multiple || false,
+    createdAt: r.created_at || '', expiresAt: r.expires_at || '',
+    createdById: r.created_by_id || '', createdByName: r.created_by_name || '',
+    isActive: r.is_active ?? true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    options: (r.poll_options || [])
+      .sort((a: any, b: any) => a.position - b.position)
+      .map((o: any) => ({ id: o.id, text: o.text, votes: (o.poll_votes || []).map((v: any) => v.user_id) })),
+  }
+}
 
-  // ── Internal notification helper ───────────────────────────────────────────
+// ── Provider ──────────────────────────────────────────────────────────────────
+export function DataProvider({ children }: { children: React.ReactNode }) {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [events, setEvents] = useState<Event[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [drives, setDrives] = useState<ContributionDrive[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [feedback, setFeedback] = useState<FeedbackItem[]>([])
+  const [listings, setListings] = useState<MarketplaceListing[]>([])
+  const [chats, setChats] = useState<GroupChat[]>([])
+  const [financeStats, setFinanceStats] = useState<{ collected: number; spent: number } | null>(null)
+  const [excoMembers, setExcoMembers] = useState<ExcoMember[]>([])
+  const [excoTerm, setExcoTermState] = useState('Term 2025')
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
+  const [polls, setPolls] = useState<Poll[]>([])
+
+  useEffect(() => {
+    fetchAnnouncements(); fetchEvents(); fetchUsers(); fetchDrives()
+    fetchFeedback(); fetchListings(); fetchChats(); fetchExco()
+    fetchAuditLog(); fetchPolls(); fetchExcoTerm()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetchers ────────────────────────────────────────────────────────────────
+  const fetchAnnouncements = async () => {
+    const { data } = await supabase.from('announcements').select('*, comments(*)').order('created_at', { ascending: false })
+    if (data) setAnnouncements(data.map(mapAnnouncement))
+  }
+  const fetchEvents = async () => {
+    const { data } = await supabase.from('events').select('*, rsvps(*)').order('date', { ascending: true })
+    if (data) setEvents(data.map(mapEvent))
+  }
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('profiles').select('*').order('joined_at', { ascending: true })
+    if (data) setUsers(data.map(mapUser))
+  }
+  const fetchDrives = async () => {
+    const { data } = await supabase.from('contribution_drives').select('*, contributions(*)').order('created_at', { ascending: false })
+    if (data) setDrives(data.map(mapDrive))
+  }
+  const fetchFeedback = async () => {
+    const { data } = await supabase.from('feedback_items').select('*').order('created_at', { ascending: false })
+    if (data) setFeedback(data.map(mapFeedback))
+  }
+  const fetchListings = async () => {
+    const { data } = await supabase.from('marketplace_listings').select('*').order('created_at', { ascending: false })
+    if (data) setListings(data.map(mapListing))
+  }
+  const fetchChats = async () => {
+    const { data } = await supabase.from('group_chats').select('*')
+    if (data) setChats(data.map(mapChat))
+  }
+  const fetchExco = async () => {
+    const { data } = await supabase.from('exco_members').select('*')
+    if (data) setExcoMembers(data.map(mapExco))
+  }
+  const fetchExcoTerm = async () => {
+    const { data } = await supabase.from('app_config').select('value').eq('key', 'exco_term').single()
+    if (data) setExcoTermState(data.value)
+  }
+  const fetchAuditLog = async () => {
+    const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3)
+    const { data } = await supabase.from('audit_log').select('*').gte('timestamp', cutoff.toISOString()).order('timestamp', { ascending: false })
+    if (data) setAuditLog(data.map(mapAudit))
+  }
+  const fetchPolls = async () => {
+    const { data } = await supabase.from('polls').select('*, poll_options(*, poll_votes(user_id))').order('created_at', { ascending: false })
+    if (data) setPolls(data.map(mapPoll))
+  }
+
+  // ── Notification helper ─────────────────────────────────────────────────────
   const pushNotification = (notif: Omit<Notification, 'id' | 'readBy'>) =>
     setNotifications((prev) => [{ ...notif, id: `n${Date.now()}`, readBy: [] }, ...prev])
 
-  // ── Announcements ──────────────────────────────────────────────────────────
-  const addAnnouncement = (ann: Omit<Announcement, 'id' | 'comments'>) => {
-    setAnnouncements((prev) => [{ ...ann, id: `a${Date.now()}`, comments: [] }, ...prev])
-    pushNotification({
-      type: 'announcement',
-      title: ann.title,
-      message: ann.content?.slice(0, 100) || ann.title,
-      createdAt: ann.createdAt,
-    })
+  // ── Announcements ───────────────────────────────────────────────────────────
+  const addAnnouncement = async (ann: Omit<Announcement, 'id' | 'comments'>) => {
+    const { data } = await supabase.from('announcements').insert({
+      title: ann.title, content: ann.content, html_content: ann.htmlContent,
+      media: ann.media, author_id: ann.authorId, author_name: ann.authorName,
+      created_at: ann.createdAt, is_pinned: ann.isPinned,
+    }).select().single()
+    if (data) {
+      setAnnouncements((prev) => [{ ...mapAnnouncement(data), comments: [] }, ...prev])
+      pushNotification({ type: 'announcement', title: ann.title, message: ann.content?.slice(0, 100) || ann.title, createdAt: ann.createdAt })
+    }
   }
-
-  const updateAnnouncement = (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments'>>) =>
-    setAnnouncements((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-
-  const deleteAnnouncement = (id: string) =>
+  const updateAnnouncement = async (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments'>>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.title !== undefined) db.title = updates.title
+    if (updates.content !== undefined) db.content = updates.content
+    if (updates.htmlContent !== undefined) db.html_content = updates.htmlContent
+    if (updates.media !== undefined) db.media = updates.media
+    if (updates.isPinned !== undefined) db.is_pinned = updates.isPinned
+    await supabase.from('announcements').update(db).eq('id', id)
+    setAnnouncements((prev) => prev.map((a) => a.id === id ? { ...a, ...updates } : a))
+  }
+  const deleteAnnouncement = async (id: string) => {
     setAnnouncements((prev) => prev.filter((a) => a.id !== id))
-
-  const addComment = (announcementId: string, comment: Announcement['comments'][0]) =>
+    await supabase.from('announcements').delete().eq('id', id)
+  }
+  const addComment = async (announcementId: string, comment: Announcement['comments'][0]) => {
+    await supabase.from('comments').insert({
+      announcement_id: announcementId, author_id: comment.authorId,
+      author_name: comment.authorName, content: comment.content, created_at: comment.createdAt,
+    })
     setAnnouncements((prev) =>
       prev.map((a) => a.id === announcementId ? { ...a, comments: [...a.comments, comment] } : a)
     )
-
-  // ── Events ─────────────────────────────────────────────────────────────────
-  const addEvent = (ev: Omit<Event, 'id' | 'rsvps'>) => {
-    setEvents((prev) => [...prev, { ...ev, id: `e${Date.now()}`, rsvps: [] }])
-    pushNotification({
-      type: 'event',
-      title: ev.title,
-      message: `${ev.date} · ${ev.location || ''}`,
-      createdAt: new Date().toISOString().slice(0, 10),
-    })
   }
 
-  const updateEvent = (id: string, updates: Partial<Omit<Event, 'id' | 'rsvps'>>) =>
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates } : e)))
-
-  const deleteEvent = (id: string) =>
+  // ── Events ──────────────────────────────────────────────────────────────────
+  const addEvent = async (ev: Omit<Event, 'id' | 'rsvps'>) => {
+    const { data } = await supabase.from('events').insert({
+      title: ev.title, description: ev.description, html_content: ev.htmlContent,
+      media: ev.media, date: ev.date, time: ev.time, location: ev.location, created_by: ev.createdBy,
+    }).select().single()
+    if (data) {
+      setEvents((prev) => [...prev, { ...mapEvent(data), rsvps: [] }].sort((a, b) => a.date.localeCompare(b.date)))
+      pushNotification({ type: 'event', title: ev.title, message: `${ev.date} · ${ev.location || ''}`, createdAt: new Date().toISOString().slice(0, 10) })
+    }
+  }
+  const updateEvent = async (id: string, updates: Partial<Omit<Event, 'id' | 'rsvps'>>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.title !== undefined) db.title = updates.title
+    if (updates.description !== undefined) db.description = updates.description
+    if (updates.htmlContent !== undefined) db.html_content = updates.htmlContent
+    if (updates.media !== undefined) db.media = updates.media
+    if (updates.date !== undefined) db.date = updates.date
+    if (updates.time !== undefined) db.time = updates.time
+    if (updates.location !== undefined) db.location = updates.location
+    await supabase.from('events').update(db).eq('id', id)
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, ...updates } : e))
+  }
+  const deleteEvent = async (id: string) => {
     setEvents((prev) => prev.filter((e) => e.id !== id))
-
-  const updateRSVP = (eventId: string, rsvp: RSVP) =>
-    setEvents((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== eventId) return ev
-        const idx = ev.rsvps.findIndex((r) => r.userId === rsvp.userId)
-        if (idx >= 0) {
-          const updated = [...ev.rsvps]
-          updated[idx] = rsvp
-          return { ...ev, rsvps: updated }
-        }
-        return { ...ev, rsvps: [...ev.rsvps, rsvp] }
-      })
-    )
-
-  // ── Users ──────────────────────────────────────────────────────────────────
-  const toggleHeadOfFamily = (userId: string) =>
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isHeadOfFamily: !u.isHeadOfFamily } : u)))
-
-  const setUserRole = (userId: string, role: 'super_admin' | 'admin' | 'member') =>
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, role } : u))
-    )
-
-  const deleteUser = (userId: string) =>
-    setUsers((prev) => prev.filter((u) => u.id !== userId))
-
-  const updateUserById = (id: string, updates: Partial<User>) =>
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, ...updates } : u))
-
-  // ── Drives ─────────────────────────────────────────────────────────────────
-  const addDrive = (drive: Omit<ContributionDrive, 'id' | 'contributions' | 'status' | 'expenses'>) => {
-    setDrives((prev) => [
-      { ...drive, id: `d${Date.now()}`, status: 'active', contributions: [], expenses: [] },
-      ...prev,
-    ])
-    pushNotification({
-      type: 'drive',
-      title: drive.title,
-      message: drive.description?.slice(0, 100) || drive.title,
-      createdAt: new Date().toISOString().slice(0, 10),
-      hofOnly: drive.hofOnly,
-    })
+    await supabase.from('events').delete().eq('id', id)
+  }
+  const updateRSVP = async (eventId: string, rsvp: RSVP) => {
+    await supabase.from('rsvps').upsert({ event_id: eventId, user_id: rsvp.userId, user_name: rsvp.userName, status: rsvp.status })
+    setEvents((prev) => prev.map((ev) => {
+      if (ev.id !== eventId) return ev
+      const idx = ev.rsvps.findIndex((r) => r.userId === rsvp.userId)
+      if (idx >= 0) { const u = [...ev.rsvps]; u[idx] = rsvp; return { ...ev, rsvps: u } }
+      return { ...ev, rsvps: [...ev.rsvps, rsvp] }
+    }))
   }
 
-  const updateDrive = (id: string, updates: Partial<Omit<ContributionDrive, 'id' | 'contributions' | 'expenses'>>) =>
+  // ── Users ───────────────────────────────────────────────────────────────────
+  const toggleHeadOfFamily = async (userId: string) => {
+    const cur = users.find((u) => u.id === userId)
+    if (!cur) return
+    const val = !cur.isHeadOfFamily
+    await supabase.from('profiles').update({ is_head_of_family: val }).eq('id', userId)
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, isHeadOfFamily: val } : u))
+  }
+  const setUserRole = async (userId: string, role: 'super_admin' | 'admin' | 'member') => {
+    await supabase.from('profiles').update({ role }).eq('id', userId)
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u))
+  }
+  const deleteUser = async (userId: string) => {
+    setUsers((prev) => prev.filter((u) => u.id !== userId))
+    await supabase.from('profiles').delete().eq('id', userId)
+  }
+  const updateUserById = async (id: string, updates: Partial<User>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.name !== undefined) db.name = updates.name
+    if (updates.branch !== undefined) db.branch = updates.branch
+    if (updates.phone !== undefined) db.phone = updates.phone
+    if (updates.address !== undefined) db.address = updates.address
+    if (updates.familyMembers !== undefined) db.family_members = updates.familyMembers
+    if (updates.totalContributed !== undefined) db.total_contributed = updates.totalContributed
+    await supabase.from('profiles').update(db).eq('id', id)
+    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, ...updates } : u))
+  }
+
+  // ── Drives ──────────────────────────────────────────────────────────────────
+  const addDrive = async (drive: Omit<ContributionDrive, 'id' | 'contributions' | 'status' | 'expenses'>) => {
+    const { data } = await supabase.from('contribution_drives').insert({
+      title: drive.title, description: drive.description, amount_type: drive.amountType,
+      fixed_amount: drive.fixedAmount, minimum_amount: drive.minimumAmount,
+      target_amount: drive.targetAmount, pay_now_name: drive.payNowName,
+      pay_now_number: drive.payNowNumber, deadline: drive.deadline,
+      special_instructions: drive.specialInstructions, status: 'active',
+      hof_only: drive.hofOnly || false, expenses: [],
+    }).select().single()
+    if (data) {
+      setDrives((prev) => [{ ...mapDrive(data), contributions: [] }, ...prev])
+      pushNotification({ type: 'drive', title: drive.title, message: drive.description?.slice(0, 100) || drive.title, createdAt: new Date().toISOString().slice(0, 10), hofOnly: drive.hofOnly })
+    }
+  }
+  const updateDrive = async (id: string, updates: Partial<Omit<ContributionDrive, 'id' | 'contributions' | 'expenses'>>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.title !== undefined) db.title = updates.title
+    if (updates.description !== undefined) db.description = updates.description
+    if (updates.amountType !== undefined) db.amount_type = updates.amountType
+    if (updates.fixedAmount !== undefined) db.fixed_amount = updates.fixedAmount
+    if (updates.minimumAmount !== undefined) db.minimum_amount = updates.minimumAmount
+    if (updates.targetAmount !== undefined) db.target_amount = updates.targetAmount
+    if (updates.payNowName !== undefined) db.pay_now_name = updates.payNowName
+    if (updates.payNowNumber !== undefined) db.pay_now_number = updates.payNowNumber
+    if (updates.deadline !== undefined) db.deadline = updates.deadline
+    if (updates.specialInstructions !== undefined) db.special_instructions = updates.specialInstructions
+    if (updates.hofOnly !== undefined) db.hof_only = updates.hofOnly
+    await supabase.from('contribution_drives').update(db).eq('id', id)
     setDrives((prev) => prev.map((d) => d.id === id ? { ...d, ...updates } : d))
+  }
+  const toggleDriveStatus = async (id: string) => {
+    const drive = drives.find((d) => d.id === id)
+    if (!drive) return
+    const newStatus = drive.status === 'active' ? 'closed' : 'active'
+    await supabase.from('contribution_drives').update({ status: newStatus }).eq('id', id)
+    setDrives((prev) => prev.map((d) => d.id === id ? { ...d, status: newStatus } : d))
+  }
+  const confirmContribution = async (driveId: string, contribId: string, confirmedBy: string) => {
+    await supabase.from('contributions').update({ confirmed: true, confirmed_by: confirmedBy }).eq('id', contribId)
+    setDrives((prev) => prev.map((d) => d.id === driveId
+      ? { ...d, contributions: d.contributions.map((c) => c.id === contribId ? { ...c, confirmed: true, confirmedBy } : c) }
+      : d))
+  }
+  const toggleContributionConfirm = async (driveId: string, contribId: string, confirmedBy: string) => {
+    const contrib = drives.find((d) => d.id === driveId)?.contributions.find((c) => c.id === contribId)
+    if (!contrib) return
+    const confirmed = !contrib.confirmed
+    await supabase.from('contributions').update({ confirmed, confirmed_by: confirmed ? confirmedBy : null }).eq('id', contribId)
+    setDrives((prev) => prev.map((d) => d.id === driveId
+      ? { ...d, contributions: d.contributions.map((c) => c.id === contribId ? { ...c, confirmed, confirmedBy: confirmed ? confirmedBy : undefined } : c) }
+      : d))
+  }
+  const recordContribution = async (driveId: string, userId: string, userName: string, amount: number, confirmedBy: string) => {
+    const existing = drives.find((d) => d.id === driveId)?.contributions.find((c) => c.userId === userId && !c.confirmed)
+    if (existing) {
+      await supabase.from('contributions').update({ confirmed: true, confirmed_by: confirmedBy }).eq('id', existing.id)
+      setDrives((prev) => prev.map((d) => d.id === driveId
+        ? { ...d, contributions: d.contributions.map((c) => c.id === existing.id ? { ...c, confirmed: true, confirmedBy } : c) }
+        : d))
+    } else {
+      const { data } = await supabase.from('contributions').insert({
+        drive_id: driveId, user_id: userId, user_name: userName, amount,
+        paid_at: new Date().toISOString().slice(0, 10), confirmed: true, confirmed_by: confirmedBy,
+      }).select().single()
+      if (data) setDrives((prev) => prev.map((d) => d.id === driveId ? { ...d, contributions: [...d.contributions, mapContrib(data)] } : d))
+    }
+  }
+  const removeContribution = async (driveId: string, contribId: string) => {
+    setDrives((prev) => prev.map((d) => d.id === driveId ? { ...d, contributions: d.contributions.filter((c) => c.id !== contribId) } : d))
+    await supabase.from('contributions').delete().eq('id', contribId)
+  }
+  const addExpense = async (driveId: string, expense: Omit<Expense, 'id'>) => {
+    const drive = drives.find((d) => d.id === driveId)
+    if (!drive) return
+    const newExpenses = [...drive.expenses, { ...expense, id: `ex${Date.now()}` }]
+    await supabase.from('contribution_drives').update({ expenses: newExpenses }).eq('id', driveId)
+    setDrives((prev) => prev.map((d) => d.id === driveId ? { ...d, expenses: newExpenses } : d))
+  }
 
-  const toggleDriveStatus = (id: string) =>
-    setDrives((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: d.status === 'active' ? 'closed' : 'active' } : d))
-    )
-
-  const confirmContribution = (driveId: string, contribId: string, confirmedBy: string) =>
-    setDrives((prev) =>
-      prev.map((d) =>
-        d.id === driveId
-          ? { ...d, contributions: d.contributions.map((c) => c.id === contribId ? { ...c, confirmed: true, confirmedBy } : c) }
-          : d
-      )
-    )
-
-  const toggleContributionConfirm = (driveId: string, contribId: string, confirmedBy: string) =>
-    setDrives((prev) =>
-      prev.map((d) =>
-        d.id === driveId
-          ? { ...d, contributions: d.contributions.map((c) => c.id === contribId ? { ...c, confirmed: !c.confirmed, confirmedBy: !c.confirmed ? confirmedBy : undefined } : c) }
-          : d
-      )
-    )
-
-  const recordContribution = (driveId: string, userId: string, userName: string, amount: number, confirmedBy: string) =>
-    setDrives((prev) =>
-      prev.map((d) => {
-        if (d.id !== driveId) return d
-        const existing = d.contributions.find((c) => c.userId === userId && !c.confirmed)
-        if (existing) {
-          return { ...d, contributions: d.contributions.map((c) => c.id === existing.id ? { ...c, confirmed: true, confirmedBy } : c) }
-        }
-        return { ...d, contributions: [...d.contributions, { id: `c${Date.now()}`, userId, userName, amount, paidAt: new Date().toISOString().slice(0, 10), confirmed: true, confirmedBy }] }
-      })
-    )
-
-  const removeContribution = (driveId: string, contribId: string) =>
-    setDrives((prev) =>
-      prev.map((d) =>
-        d.id === driveId
-          ? { ...d, contributions: d.contributions.filter((c) => c.id !== contribId) }
-          : d
-      )
-    )
-
-  const addExpense = (driveId: string, expense: Omit<Expense, 'id'>) =>
-    setDrives((prev) =>
-      prev.map((d) =>
-        d.id === driveId
-          ? { ...d, expenses: [...d.expenses, { ...expense, id: `ex${Date.now()}` }] }
-          : d
-      )
-    )
-
-  // ── Notifications ──────────────────────────────────────────────────────────
+  // ── Notifications (in-memory only) ──────────────────────────────────────────
   const markNotificationRead = (notifId: string, userId: string) =>
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === notifId && !n.readBy.includes(userId)
-          ? { ...n, readBy: [...n.readBy, userId] }
-          : n
-      )
-    )
-
+    setNotifications((prev) => prev.map((n) => n.id === notifId && !n.readBy.includes(userId) ? { ...n, readBy: [...n.readBy, userId] } : n))
   const markAllRead = (userId: string) =>
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.readBy.includes(userId) ? n : { ...n, readBy: [...n.readBy, userId] }
-      )
-    )
+    setNotifications((prev) => prev.map((n) => n.readBy.includes(userId) ? n : { ...n, readBy: [...n.readBy, userId] }))
 
-  // ── Feedback ───────────────────────────────────────────────────────────────
-  const addFeedback = (item: Omit<FeedbackItem, 'id' | 'status'>) =>
-    setFeedback((prev) => [{ ...item, id: `fb${Date.now()}`, status: 'open' }, ...prev])
-
-  const markFeedbackResolved = (id: string, byName: string) =>
-    setFeedback((prev) => prev.map((f) => f.id === id
-      ? { ...f, status: 'resolved', lastAction: 'resolved', lastActionBy: byName, lastActionAt: new Date().toISOString().slice(0, 10) }
-      : f))
-
-  const reopenFeedback = (id: string, byName: string) =>
-    setFeedback((prev) => prev.map((f) => f.id === id
-      ? { ...f, status: 'open', lastAction: 'reopened', lastActionBy: byName, lastActionAt: new Date().toISOString().slice(0, 10) }
-      : f))
-
-  const deleteFeedback = (id: string) =>
+  // ── Feedback ─────────────────────────────────────────────────────────────────
+  const addFeedback = async (item: Omit<FeedbackItem, 'id' | 'status'>) => {
+    const { data } = await supabase.from('feedback_items').insert({
+      user_id: item.userId, user_name: item.userName, content: item.content,
+      contact_details: item.contactDetails, request_follow_up: item.requestFollowUp,
+      status: 'open', created_at: item.createdAt,
+    }).select().single()
+    if (data) setFeedback((prev) => [mapFeedback(data), ...prev])
+  }
+  const markFeedbackResolved = async (id: string, byName: string) => {
+    const today = new Date().toISOString().slice(0, 10)
+    await supabase.from('feedback_items').update({ status: 'resolved', last_action: 'resolved', last_action_by: byName, last_action_at: today }).eq('id', id)
+    setFeedback((prev) => prev.map((f) => f.id === id ? { ...f, status: 'resolved' as const, lastAction: 'resolved' as const, lastActionBy: byName, lastActionAt: today } : f))
+  }
+  const reopenFeedback = async (id: string, byName: string) => {
+    const today = new Date().toISOString().slice(0, 10)
+    await supabase.from('feedback_items').update({ status: 'open', last_action: 'reopened', last_action_by: byName, last_action_at: today }).eq('id', id)
+    setFeedback((prev) => prev.map((f) => f.id === id ? { ...f, status: 'open' as const, lastAction: 'reopened' as const, lastActionBy: byName, lastActionAt: today } : f))
+  }
+  const deleteFeedback = async (id: string) => {
     setFeedback((prev) => prev.filter((f) => f.id !== id))
+    await supabase.from('feedback_items').delete().eq('id', id)
+  }
 
-  // ── Marketplace ────────────────────────────────────────────────────────────
-  const addListing = (listing: Omit<MarketplaceListing, 'id' | 'createdAt'>) =>
-    setListings((prev) => [{ ...listing, id: `m${Date.now()}`, createdAt: new Date().toISOString().slice(0, 10) }, ...prev])
-
-  const deleteListing = (id: string) =>
+  // ── Marketplace ───────────────────────────────────────────────────────────────
+  const addListing = async (listing: Omit<MarketplaceListing, 'id' | 'createdAt'>) => {
+    const { data } = await supabase.from('marketplace_listings').insert({
+      seller_id: listing.sellerId, seller_name: listing.sellerName, title: listing.title,
+      description: listing.description, html_description: listing.htmlDescription,
+      price: listing.price, category: listing.category,
+      expires_at: listing.expiresAt, photos: listing.photos || [], read_by: [],
+    }).select().single()
+    if (data) setListings((prev) => [mapListing(data), ...prev])
+  }
+  const deleteListing = async (id: string) => {
     setListings((prev) => prev.filter((l) => l.id !== id))
-
+    await supabase.from('marketplace_listings').delete().eq('id', id)
+  }
   const pushExpiryNotification = (listing: MarketplaceListing) =>
-    pushNotification({
-      type: 'listing',
-      title: 'Listing Expired',
-      message: `Your listing "${listing.title}" has expired and been removed.`,
-      createdAt: new Date().toISOString().slice(0, 10),
-      targetUserId: listing.sellerId,
-    })
+    pushNotification({ type: 'listing', title: 'Listing Expired', message: `Your listing "${listing.title}" has expired.`, createdAt: new Date().toISOString().slice(0, 10), targetUserId: listing.sellerId })
+  const toggleListingRead = async (listingId: string, userId: string) => {
+    const listing = listings.find((l) => l.id === listingId)
+    if (!listing) return
+    const readBy = listing.readBy ?? []
+    const newReadBy = readBy.includes(userId) ? readBy.filter((id) => id !== userId) : [...readBy, userId]
+    await supabase.from('marketplace_listings').update({ read_by: newReadBy }).eq('id', listingId)
+    setListings((prev) => prev.map((l) => l.id === listingId ? { ...l, readBy: newReadBy } : l))
+  }
 
-  const toggleListingRead = (listingId: string, userId: string) =>
-    setListings((prev) =>
-      prev.map((l) => {
-        if (l.id !== listingId) return l
-        const readBy = l.readBy ?? []
-        return readBy.includes(userId)
-          ? { ...l, readBy: readBy.filter((id) => id !== userId) }
-          : { ...l, readBy: [...readBy, userId] }
-      })
-    )
-
-  // ── Social Media / Group Chats ─────────────────────────────────────────────
-  const addChat = (chat: Omit<GroupChat, 'id'>) =>
-    setChats((prev) => [...prev, { ...chat, id: `g${Date.now()}` }])
-
-  const updateChat = (id: string, updates: Partial<Omit<GroupChat, 'id'>>) =>
-    setChats((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
-
-  const deleteChat = (id: string) =>
+  // ── Group Chats ───────────────────────────────────────────────────────────────
+  const addChat = async (chat: Omit<GroupChat, 'id'>) => {
+    const { data } = await supabase.from('group_chats').insert({ name: chat.name, platform: chat.platform, url: chat.url, description: chat.description }).select().single()
+    if (data) setChats((prev) => [...prev, mapChat(data)])
+  }
+  const updateChat = async (id: string, updates: Partial<Omit<GroupChat, 'id'>>) => {
+    await supabase.from('group_chats').update(updates).eq('id', id)
+    setChats((prev) => prev.map((c) => c.id === id ? { ...c, ...updates } : c))
+  }
+  const deleteChat = async (id: string) => {
     setChats((prev) => prev.filter((c) => c.id !== id))
+    await supabase.from('group_chats').delete().eq('id', id)
+  }
 
-  // ── Exco ───────────────────────────────────────────────────────────────────
-  const addExcoMember = (member: Omit<ExcoMember, 'id'>) =>
-    setExcoMembers((prev) => [...prev, { ...member, id: `x${Date.now()}` }])
-
-  const updateExcoMember = (id: string, updates: Partial<Omit<ExcoMember, 'id'>>) =>
-    setExcoMembers((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)))
-
-  const deleteExcoMember = (id: string) =>
+  // ── Exco ─────────────────────────────────────────────────────────────────────
+  const addExcoMember = async (member: Omit<ExcoMember, 'id'>) => {
+    const { data } = await supabase.from('exco_members').insert({ user_id: member.userId, name: member.name, position: member.position, avatar: member.avatar, since: member.since }).select().single()
+    if (data) setExcoMembers((prev) => [...prev, mapExco(data)])
+  }
+  const updateExcoMember = async (id: string, updates: Partial<Omit<ExcoMember, 'id'>>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.name !== undefined) db.name = updates.name
+    if (updates.position !== undefined) db.position = updates.position
+    if (updates.avatar !== undefined) db.avatar = updates.avatar
+    if (updates.since !== undefined) db.since = updates.since
+    await supabase.from('exco_members').update(db).eq('id', id)
+    setExcoMembers((prev) => prev.map((m) => m.id === id ? { ...m, ...updates } : m))
+  }
+  const deleteExcoMember = async (id: string) => {
     setExcoMembers((prev) => prev.filter((m) => m.id !== id))
+    await supabase.from('exco_members').delete().eq('id', id)
+  }
+  const setExcoTerm = async (term: string) => {
+    await supabase.from('app_config').upsert({ key: 'exco_term', value: term })
+    setExcoTermState(term)
+  }
 
-  // ── Audit log ──────────────────────────────────────────────────────────────
-  const cutoff = () => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d }
-  const prune = (entries: AuditEntry[]) => entries.filter((e) => new Date(e.timestamp) >= cutoff())
+  // ── Audit Log ─────────────────────────────────────────────────────────────────
+  const addAuditEntry = async (activity: string, initiatedBy: string, category: AuditCategory) => {
+    const { data } = await supabase.from('audit_log').insert({ category, activity, initiated_by: initiatedBy, timestamp: new Date().toISOString() }).select().single()
+    if (data) setAuditLog((prev) => [mapAudit(data), ...prev])
+  }
 
-  // Purge entries older than 3 months on mount
-  useEffect(() => { setAuditLog((prev) => prune(prev)) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Polls ──────────────────────────────────────────────────────────────────
-  const addPoll = (poll: Omit<Poll, 'id' | 'createdAt'>) =>
-    setPolls((prev) => [{ ...poll, id: `poll${Date.now()}`, createdAt: new Date().toISOString().slice(0, 10) }, ...prev])
-
-  const updatePoll = (id: string, updates: Partial<Omit<Poll, 'id' | 'createdAt'>>) =>
-    setPolls((prev) => prev.map((p) => p.id === id ? { ...p, ...updates } : p))
-
-  const deletePoll = (id: string) =>
+  // ── Polls ─────────────────────────────────────────────────────────────────────
+  const addPoll = async (poll: Omit<Poll, 'id' | 'createdAt'>) => {
+    const { data: pd } = await supabase.from('polls').insert({
+      question: poll.question, allow_multiple: poll.allowMultiple,
+      expires_at: poll.expiresAt, created_by_id: poll.createdById,
+      created_by_name: poll.createdByName, is_active: poll.isActive,
+      created_at: new Date().toISOString().slice(0, 10),
+    }).select().single()
+    if (pd) {
+      await supabase.from('poll_options').insert(poll.options.map((opt, i) => ({ poll_id: pd.id, text: opt.text, position: i })))
+      await fetchPolls()
+    }
+  }
+  const updatePoll = async (id: string, updates: Partial<Omit<Poll, 'id' | 'createdAt'>>) => {
+    const db: Record<string, unknown> = {}
+    if (updates.question !== undefined) db.question = updates.question
+    if (updates.allowMultiple !== undefined) db.allow_multiple = updates.allowMultiple
+    if (updates.expiresAt !== undefined) db.expires_at = updates.expiresAt
+    if (updates.isActive !== undefined) db.is_active = updates.isActive
+    if (Object.keys(db).length > 0) await supabase.from('polls').update(db).eq('id', id)
+    if (updates.options) {
+      await supabase.from('poll_options').delete().eq('poll_id', id)
+      await supabase.from('poll_options').insert(updates.options.map((opt, i) => ({ poll_id: id, text: opt.text, position: i })))
+    }
+    await fetchPolls()
+  }
+  const deletePoll = async (id: string) => {
     setPolls((prev) => prev.filter((p) => p.id !== id))
-
-  const votePoll = (pollId: string, optionIds: string[], userId: string) =>
-    setPolls((prev) => prev.map((p) => {
-      if (p.id !== pollId) return p
-      const cleared = p.options.map((o) => ({ ...o, votes: o.votes.filter((v) => v !== userId) }))
-      return { ...p, options: cleared.map((o) => optionIds.includes(o.id) ? { ...o, votes: [...o.votes, userId] } : o) }
-    }))
-
-  const addAuditEntry = (activity: string, initiatedBy: string, category: AuditCategory) =>
-    setAuditLog((prev) => [{
-      id: `al${Date.now()}`,
-      category,
-      activity,
-      initiatedBy,
-      timestamp: new Date().toISOString(),
-    }, ...prune(prev)])
+    await supabase.from('polls').delete().eq('id', id)
+  }
+  const votePoll = async (pollId: string, optionIds: string[], userId: string) => {
+    await supabase.from('poll_votes').delete().eq('poll_id', pollId).eq('user_id', userId)
+    if (optionIds.length > 0) {
+      await supabase.from('poll_votes').insert(optionIds.map((optionId) => ({ option_id: optionId, user_id: userId, poll_id: pollId })))
+    }
+    await fetchPolls()
+  }
 
   return (
     <DataContext.Provider value={{
