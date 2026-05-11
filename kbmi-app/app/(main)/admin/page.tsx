@@ -665,7 +665,7 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-          {users.map((u) => {
+          {[...users].sort((a, b) => a.name.localeCompare(b.name)).map((u) => {
             const canToggleHoF = u.role === 'member'
             return (
               <div key={u.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm border border-gray-100">
