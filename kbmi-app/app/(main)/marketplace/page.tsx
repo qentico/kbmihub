@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { ArrowLeft, ShoppingBag, Wrench, HelpCircle, Phone, Clock, CheckCircle2, Circle, Trash2 } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Wrench, HelpCircle, Phone, Clock, CheckCircle2, Circle, Trash2, ChevronDown, Check } from 'lucide-react'
 import { useLang } from '@/lib/language-context'
 import { useAuth } from '@/lib/auth-context'
 import { useData } from '@/lib/data-context'
@@ -62,7 +62,9 @@ export default function MarketplacePage() {
   const { user } = useAuth()
   const { listings, users, pushExpiryNotification, toggleListingRead, deleteListing, addAuditEntry } = useData()
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
-  const [filter, setFilter] = useState<'all' | MarketplaceListing['category']>('all')
+  const [selectedCats, setSelectedCats] = useState<Set<MarketplaceListing['category']>>(new Set())
+  const [filterOpen, setFilterOpen] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
   const notifiedIds = useRef<Set<string>>(new Set())
 
   // Check for expired listings belonging to current user and notify once
@@ -76,20 +78,47 @@ export default function MarketplacePage() {
     })
   }, [listings, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   // Filter out expired listings, then apply category filter
   const active = listings.filter((l) => l.expiresAt >= today)
-  const filtered = filter === 'all' ? active : active.filter((l) => l.category === filter)
+  const filtered = selectedCats.size === 0 ? active : active.filter((l) => selectedCats.has(l.category))
 
   const isUnread = (l: MarketplaceListing) => !(l.readBy ?? []).includes(user?.id ?? '')
-  const unreadCount = (cat: 'all' | MarketplaceListing['category']) =>
-    active.filter((l) => (cat === 'all' || l.category === cat) && isUnread(l)).length
+  const unreadCountFor = (cat: MarketplaceListing['category']) =>
+    active.filter((l) => l.category === cat && isUnread(l)).length
+  const totalUnread = filtered.filter(isUnread).length
 
-  const filters = [
-    { value: 'all',     en: 'All',      ms: 'Semua' },
-    { value: 'sale',    en: 'For Sale', ms: 'Jual' },
-    { value: 'service', en: 'Services', ms: 'Servis' },
-    { value: 'request', en: 'Requests', ms: 'Permintaan' },
-  ] as const
+  const catOptions = [
+    { value: 'sale'    as const, en: 'For Sale', ms: 'Untuk Dijual' },
+    { value: 'service' as const, en: 'Services',  ms: 'Perkhidmatan' },
+    { value: 'request' as const, en: 'Requests',  ms: 'Permintaan' },
+  ]
+
+  const toggleCat = (cat: MarketplaceListing['category']) => {
+    setSelectedCats((prev) => {
+      const next = new Set(prev)
+      next.has(cat) ? next.delete(cat) : next.add(cat)
+      return next
+    })
+  }
+
+  const filterLabel = () => {
+    if (selectedCats.size === 0 || selectedCats.size === 3) return lang === 'en' ? 'All' : 'Semua'
+    return catOptions
+      .filter((o) => selectedCats.has(o.value))
+      .map((o) => (lang === 'en' ? o.en : o.ms))
+      .join(', ')
+  }
 
   const daysLeft = (expiresAt: string) => {
     const diff = Math.ceil((new Date(expiresAt).getTime() - new Date(today).getTime()) / 86400000)
@@ -116,33 +145,59 @@ export default function MarketplacePage() {
         </div>
       </div>
 
-      {/* Filter pills + New Listing button */}
+      {/* Filter dropdown + New Listing button */}
       <div className="flex items-center gap-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar flex-1">
-          {filters.map(({ value, en, ms }) => {
-            const count = unreadCount(value)
-            return (
-              <button
-                key={value}
-                onClick={() => setFilter(value)}
-                className={`shrink-0 relative flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  filter === value
-                    ? 'bg-[#2D1B5E] text-white'
-                    : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                {lang === 'en' ? en : ms}
-                {count > 0 && (
-                  <span className={`inline-flex h-4.5 min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none ${
-                    filter === value ? 'bg-white text-violet-700' : 'bg-violet-600 text-white'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+        <div ref={filterRef} className="relative flex-1">
+          <button
+            onClick={() => setFilterOpen((v) => !v)}
+            className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <span className="flex-1 text-left">{filterLabel()}</span>
+            {totalUnread > 0 && (
+              <span className="inline-flex h-4.5 min-w-[1.1rem] items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-bold leading-none text-white">
+                {totalUnread}
+              </span>
+            )}
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {filterOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1.5 w-52 rounded-2xl border border-gray-100 bg-white shadow-lg py-2">
+              {catOptions.map(({ value, en, ms }) => {
+                const checked = selectedCats.has(value)
+                const count = unreadCountFor(value)
+                return (
+                  <button
+                    key={value}
+                    onClick={() => toggleCat(value)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${checked ? 'bg-[#2D1B5E] border-[#2D1B5E]' : 'border-gray-300'}`}>
+                      {checked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                    </span>
+                    <span className="flex-1 text-left text-gray-700">{lang === 'en' ? en : ms}</span>
+                    {count > 0 && (
+                      <span className="inline-flex h-4.5 min-w-[1.1rem] items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-bold leading-none text-white">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {selectedCats.size > 0 && (
+                <div className="border-t border-gray-100 mt-1 pt-1 px-4">
+                  <button
+                    onClick={() => setSelectedCats(new Set())}
+                    className="text-xs text-gray-400 hover:text-gray-600 py-1.5"
+                  >
+                    {lang === 'en' ? 'Clear filters' : 'Kosongkan penapis'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
         <Link
           href="/marketplace/new"
           className="shrink-0 rounded-full bg-violet-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-800 transition-colors"

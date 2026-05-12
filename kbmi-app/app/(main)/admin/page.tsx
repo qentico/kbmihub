@@ -69,8 +69,6 @@ export default function AdminPage() {
 
   const [tab, setTab] = useState<Tab>('dashboard')
   const [financeTab, setFinanceTab] = useState<'overview' | 'contributors' | 'drives'>('overview')
-  const [editingFinanceStats, setEditingFinanceStats] = useState(false)
-  const [financeEditForm, setFinanceEditForm] = useState({ collected: '', spent: '' })
   const [showFeedbackExportMenu, setShowFeedbackExportMenu] = useState(false)
   const [showFinanceExportMenu, setShowFinanceExportMenu] = useState(false)
   const [showAuditExportMenu, setShowAuditExportMenu] = useState(false)
@@ -1265,106 +1263,28 @@ export default function AdminPage() {
           {/* ── Overview sub-tab: per-drive charts ── */}
           {financeTab === 'overview' && (
             <div className="space-y-3">
-              {/* ── Finance summary card (editable by super admin) ── */}
+              {/* ── Finance summary card ── */}
               <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-3">
+                <div className="mb-3">
                   <span className="text-sm font-semibold text-gray-700">{lang === 'en' ? 'Treasury Summary' : 'Ringkasan Kewangan'}</span>
-                  {!editingFinanceStats && (
-                    <button
-                      onClick={() => {
-                        setFinanceEditForm({ collected: String(totalCollected), spent: String(totalSpent) })
-                        setEditingFinanceStats(true)
-                      }}
-                      className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      {lang === 'en' ? 'Edit' : 'Edit'}
-                    </button>
-                  )}
                 </div>
-
-                {editingFinanceStats ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">{lang === 'en' ? 'Collected (SGD)' : 'Dikutip (SGD)'}</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={financeEditForm.collected}
-                          onChange={(e) => setFinanceEditForm((f) => ({ ...f, collected: e.target.value }))}
-                          className="text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">{lang === 'en' ? 'Spent (SGD)' : 'Dibelanjakan (SGD)'}</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={financeEditForm.spent}
-                          onChange={(e) => setFinanceEditForm((f) => ({ ...f, spent: e.target.value }))}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
-                        onClick={() => {
-                          const c = parseFloat(financeEditForm.collected) || 0
-                          const s = parseFloat(financeEditForm.spent) || 0
-                          addAuditEntry(`Updated treasury stats (Collected: SGD ${c.toLocaleString()}, Spent: SGD ${s.toLocaleString()})`, user?.name || '', 'Finance')
-                          setFinanceStats({ collected: c, spent: s })
-                          setEditingFinanceStats(false)
-                        }}
-                      >
-                        <Check className="h-3.5 w-3.5 mr-1" />
-                        {lang === 'en' ? 'Save' : 'Simpan'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingFinanceStats(false)}
-                      >
-                        {lang === 'en' ? 'Cancel' : 'Batal'}
-                      </Button>
-                      {financeStats && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-gray-400 border-gray-200"
-                          onClick={() => { addAuditEntry('Reset treasury stats to auto-computed values', user?.name || '', 'Finance'); setFinanceStats(null); setEditingFinanceStats(false) }}
-                        >
-                          {lang === 'en' ? 'Reset' : 'Set Semula'}
-                        </Button>
-                      )}
-                    </div>
-                    {financeStats && (
-                      <p className="text-xs text-amber-600">
-                        {lang === 'en' ? '* Showing manually set figures. Reset to use auto-calculated values.' : '* Angka ditetapkan secara manual. Reset untuk menggunakan nilai auto.'}
-                      </p>
-                    )}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-emerald-700 p-3 text-white">
+                    <TrendingUp className="h-4 w-4 opacity-70 mb-1" />
+                    <div className="text-base font-bold">SGD {totalCollected.toLocaleString()}</div>
+                    <div className="text-xs opacity-80">{lang === 'en' ? 'Collected' : 'Dikutip'}</div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-emerald-700 p-3 text-white">
-                      <TrendingUp className="h-4 w-4 opacity-70 mb-1" />
-                      <div className="text-base font-bold">SGD {totalCollected.toLocaleString()}</div>
-                      <div className="text-xs opacity-80">{lang === 'en' ? 'Collected' : 'Dikutip'}</div>
-                    </div>
-                    <div className="rounded-xl bg-red-500 p-3 text-white">
-                      <TrendingDown className="h-4 w-4 opacity-70 mb-1" />
-                      <div className="text-base font-bold">SGD {totalSpent.toLocaleString()}</div>
-                      <div className="text-xs opacity-80">{lang === 'en' ? 'Spent' : 'Dibelanjakan'}</div>
-                    </div>
-                    <div className={`rounded-xl p-3 text-white ${netBalance >= 0 ? 'bg-blue-600' : 'bg-orange-500'}`}>
-                      <Wallet className="h-4 w-4 opacity-70 mb-1" />
-                      <div className="text-base font-bold">{netBalance < 0 ? '-' : ''}SGD {Math.abs(netBalance).toLocaleString()}</div>
-                      <div className="text-xs opacity-80">{lang === 'en' ? 'Balance' : 'Baki'}</div>
-                    </div>
+                  <div className="rounded-xl bg-red-500 p-3 text-white">
+                    <TrendingDown className="h-4 w-4 opacity-70 mb-1" />
+                    <div className="text-base font-bold">SGD {totalSpent.toLocaleString()}</div>
+                    <div className="text-xs opacity-80">{lang === 'en' ? 'Spent' : 'Dibelanjakan'}</div>
                   </div>
-                )}
+                  <div className={`rounded-xl p-3 text-white ${netBalance >= 0 ? 'bg-blue-600' : 'bg-orange-500'}`}>
+                    <Wallet className="h-4 w-4 opacity-70 mb-1" />
+                    <div className="text-base font-bold">{netBalance < 0 ? '-' : ''}SGD {Math.abs(netBalance).toLocaleString()}</div>
+                    <div className="text-xs opacity-80">{lang === 'en' ? 'Balance' : 'Baki'}</div>
+                  </div>
+                </div>
               </div>
 
               {drives.map((d) => {
