@@ -9,8 +9,8 @@ import {
 
 interface DataContextValue {
   announcements: Announcement[]
-  addAnnouncement: (ann: Omit<Announcement, 'id' | 'comments'>) => void
-  updateAnnouncement: (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments'>>) => void
+  addAnnouncement: (ann: Omit<Announcement, 'id' | 'comments' | 'likedBy'>) => void
+  updateAnnouncement: (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments' | 'likedBy'>>) => void
   deleteAnnouncement: (id: string) => void
   addComment: (announcementId: string, comment: Announcement['comments'][0]) => void
   toggleLike: (announcementId: string, userId: string) => void
@@ -250,7 +250,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => [{ ...notif, id: `n${Date.now()}`, readBy: [] }, ...prev])
 
   // ── Announcements ───────────────────────────────────────────────────────────
-  const addAnnouncement = async (ann: Omit<Announcement, 'id' | 'comments'>) => {
+  const addAnnouncement = async (ann: Omit<Announcement, 'id' | 'comments' | 'likedBy'>) => {
     const { data } = await supabase.from('announcements').insert({
       title: ann.title, content: ann.content, html_content: ann.htmlContent,
       media: ann.media, author_id: ann.authorId, author_name: ann.authorName,
@@ -261,7 +261,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       pushNotification({ type: 'announcement', title: ann.title, message: ann.content?.slice(0, 100) || ann.title, createdAt: ann.createdAt })
     }
   }
-  const updateAnnouncement = async (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments'>>) => {
+  const updateAnnouncement = async (id: string, updates: Partial<Omit<Announcement, 'id' | 'comments' | 'likedBy'>>) => {
     const db: Record<string, unknown> = {}
     if (updates.title !== undefined) db.title = updates.title
     if (updates.content !== undefined) db.content = updates.content
