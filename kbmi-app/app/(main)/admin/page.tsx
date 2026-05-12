@@ -58,7 +58,7 @@ export default function AdminPage() {
     announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement,
     events, addEvent, updateEvent, deleteEvent,
     users, toggleHeadOfFamily, setUserRole, deleteUser, updateUserById,
-    drives, addDrive, updateDrive, toggleDriveStatus, confirmContribution, toggleContributionConfirm, recordContribution, removeContribution, addExpense,
+    drives, addDrive, updateDrive, toggleDriveStatus, deleteDrive, confirmContribution, toggleContributionConfirm, recordContribution, removeContribution, addExpense,
     feedback, markFeedbackResolved, reopenFeedback, deleteFeedback,
     listings,
     polls, addPoll, updatePoll, deletePoll,
@@ -94,6 +94,7 @@ export default function AdminPage() {
   const [selectedDrive, setSelectedDrive] = useState<ContributionDrive | null>(null)
   const [paymentInput, setPaymentInput] = useState<{ userId: string; amount: string } | null>(null)
   const [editingDrive, setEditingDrive] = useState<ContributionDrive | null>(null)
+  const [confirmDeleteDriveId, setConfirmDeleteDriveId] = useState<string | null>(null)
   const [editDriveForm, setEditDriveForm] = useState<DriveForm>(emptyDrive())
 
   // Announcement state
@@ -1445,30 +1446,59 @@ export default function AdminPage() {
                         ) : (
                           <span className="text-sm font-semibold text-gray-900">{d.title}</span>
                         )}
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => {
-                              setEditingDrive(d)
-                              setEditDriveForm({
-                                title: d.title,
-                                description: d.description,
-                                amountType: d.amountType,
-                                fixedAmount: d.fixedAmount != null ? String(d.fixedAmount) : '',
-                                minimumAmount: d.minimumAmount != null ? String(d.minimumAmount) : '',
-                                targetAmount: String(d.targetAmount),
-                                payNowName: d.payNowName,
-                                payNowNumber: d.payNowNumber,
-                                specialInstructions: d.specialInstructions || '',
-                                deadline: d.deadline,
-                                hofOnly: d.hofOnly ?? false,
-                              })
-                            }}
-                            className="text-gray-400 hover:text-emerald-700 transition-colors shrink-0"
-                            title={lang === 'en' ? 'Edit' : 'Edit'}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        {isSuperAdmin && (confirmDeleteDriveId === d.id ? (
+                          <span className="flex items-center gap-1 ml-1">
+                            <span className="text-xs text-red-500 font-medium">{lang === 'en' ? 'Delete?' : 'Padam?'}</span>
+                            <button
+                              onClick={() => {
+                                deleteDrive(d.id)
+                                addAuditEntry(`Deleted fund drive: "${d.title}"`, user?.name || '', 'Finance')
+                                setConfirmDeleteDriveId(null)
+                              }}
+                              className="rounded px-2 py-0.5 text-xs bg-red-500 text-white hover:bg-red-600 transition-colors"
+                            >
+                              {lang === 'en' ? 'Yes' : 'Ya'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteDriveId(null)}
+                              className="rounded px-2 py-0.5 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                            >
+                              {lang === 'en' ? 'No' : 'Tidak'}
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-0.5 ml-0.5">
+                            <button
+                              onClick={() => {
+                                setEditingDrive(d)
+                                setEditDriveForm({
+                                  title: d.title,
+                                  description: d.description,
+                                  amountType: d.amountType,
+                                  fixedAmount: d.fixedAmount != null ? String(d.fixedAmount) : '',
+                                  minimumAmount: d.minimumAmount != null ? String(d.minimumAmount) : '',
+                                  targetAmount: String(d.targetAmount),
+                                  payNowName: d.payNowName,
+                                  payNowNumber: d.payNowNumber,
+                                  specialInstructions: d.specialInstructions || '',
+                                  deadline: d.deadline,
+                                  hofOnly: d.hofOnly ?? false,
+                                })
+                              }}
+                              className="text-gray-400 hover:text-emerald-700 transition-colors shrink-0"
+                              title={lang === 'en' ? 'Edit' : 'Edit'}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteDriveId(d.id)}
+                              className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                              title={lang === 'en' ? 'Delete' : 'Padam'}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                        ))}
                       </div>
                       {d.hofOnly && (
                         <Badge className="mt-1 text-xs bg-amber-100 text-amber-700">

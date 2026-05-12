@@ -31,6 +31,7 @@ interface DataContextValue {
   addDrive: (drive: Omit<ContributionDrive, 'id' | 'contributions' | 'status' | 'expenses'>) => void
   updateDrive: (id: string, updates: Partial<Omit<ContributionDrive, 'id' | 'contributions' | 'expenses'>>) => void
   toggleDriveStatus: (id: string) => void
+  deleteDrive: (id: string) => void
   confirmContribution: (driveId: string, contribId: string, confirmedBy: string) => void
   toggleContributionConfirm: (driveId: string, contribId: string, confirmedBy: string) => void
   recordContribution: (driveId: string, userId: string, userName: string, amount: number, confirmedBy: string) => void
@@ -390,6 +391,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await supabase.from('contribution_drives').update(db).eq('id', id)
     setDrives((prev) => prev.map((d) => d.id === id ? { ...d, ...updates } : d))
   }
+  const deleteDrive = async (id: string) => {
+    setDrives((prev) => prev.filter((d) => d.id !== id))
+    await supabase.from('contributions').delete().eq('drive_id', id)
+    await supabase.from('contribution_drives').delete().eq('id', id)
+  }
   const toggleDriveStatus = async (id: string) => {
     const drive = drives.find((d) => d.id === id)
     if (!drive) return
@@ -589,7 +595,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement, addComment, toggleLike,
       events, addEvent, updateEvent, deleteEvent, updateRSVP,
       users, toggleHeadOfFamily, setUserRole, deleteUser, updateUserById,
-      drives, addDrive, updateDrive, toggleDriveStatus, confirmContribution, toggleContributionConfirm, recordContribution, removeContribution, addExpense,
+      drives, addDrive, updateDrive, toggleDriveStatus, deleteDrive, confirmContribution, toggleContributionConfirm, recordContribution, removeContribution, addExpense,
       notifications, markNotificationRead, markAllRead,
       feedback, addFeedback, markFeedbackResolved, reopenFeedback, deleteFeedback,
       listings, addListing, deleteListing, pushExpiryNotification, toggleListingRead,
