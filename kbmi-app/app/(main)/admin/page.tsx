@@ -24,6 +24,7 @@ import dynamic from 'next/dynamic'
 
 const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), { ssr: false })
 const DashboardCharts = dynamic(() => import('@/components/DashboardCharts'), { ssr: false })
+const DriveBarChart = dynamic(() => import('@/components/DriveBarChart'), { ssr: false })
 
 type Tab = 'dashboard' | 'users' | 'announcements' | 'events' | 'finance' | 'feedback' | 'audit' | 'polls'
 
@@ -619,6 +620,14 @@ export default function AdminPage() {
                 <div className="text-xs opacity-80">{lang === 'en' ? 'Current Balance' : 'Baki Semasa'}</div>
               </div>
             </div>
+
+          {/* ── Contribution Drives chart ── */}
+          <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              {lang === 'en' ? 'Contribution Drives — Collected vs Target (SGD)' : 'Kutipan Dana — Terkumpul vs Sasaran (SGD)'}
+            </p>
+            <DriveBarChart lang={lang} drives={drives} />
+          </div>
           </div>
 
           {/* ── Interactivity ── */}
