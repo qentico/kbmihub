@@ -104,8 +104,9 @@ export default function DashboardCharts({ lang, announcements, events, listings,
       [collectedKey]: collected,
       [spentKey]: spent,
       [targetKey]: target,
-      collectedPct: target > 0 ? Math.round((collected / target) * 100) : 0,
-      spentPct: target > 0 ? Math.round((spent / target) * 100) : 0,
+      collectedLabel: target > 0 ? `${Math.round((collected / target) * 100)}%` : '0%',
+      spentLabel: target > 0 ? `${Math.round((spent / target) * 100)}%` : '0%',
+      targetLabel: '100%',
     }
   })
 
@@ -243,13 +244,13 @@ export default function DashboardCharts({ lang, announcements, events, listings,
               />
               <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
               <Bar dataKey={collectedKey} fill="#10b981" radius={[4, 4, 0, 0]} barSize={14}>
-                <LabelList dataKey="collectedPct" position="top" formatter={(v: number) => `${v}%`} style={{ fontSize: 8, fill: '#059669', fontWeight: 700 }} />
+                <LabelList dataKey="collectedLabel" position="top" style={{ fontSize: 8, fill: '#059669', fontWeight: 700 }} />
               </Bar>
               <Bar dataKey={spentKey} fill="#f97316" radius={[4, 4, 0, 0]} barSize={14}>
-                <LabelList dataKey="spentPct" position="top" formatter={(v: number) => `${v}%`} style={{ fontSize: 8, fill: '#ea580c', fontWeight: 700 }} />
+                <LabelList dataKey="spentLabel" position="top" style={{ fontSize: 8, fill: '#ea580c', fontWeight: 700 }} />
               </Bar>
               <Bar dataKey={targetKey} fill="#e5e7eb" radius={[4, 4, 0, 0]} barSize={14}>
-                <LabelList dataKey={targetKey} position="top" formatter={() => '100%'} style={{ fontSize: 8, fill: '#9ca3af', fontWeight: 700 }} />
+                <LabelList dataKey="targetLabel" position="top" style={{ fontSize: 8, fill: '#9ca3af', fontWeight: 700 }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
