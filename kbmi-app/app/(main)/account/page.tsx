@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth-context'
 import { useLang } from '@/lib/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 type FamilyMember = { name: string; relationship: string }
@@ -35,7 +34,6 @@ export default function AccountPage() {
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [phone, setPhone] = useState(user?.phone || '')
-  const [address, setAddress] = useState(user?.address || '')
   const [dob, setDob] = useState(user?.dob || '')
   const [profilePhoto, setProfilePhoto] = useState(user?.profilePhoto || '')
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(user?.familyMembers || [])
@@ -60,6 +58,9 @@ export default function AccountPage() {
     setNewRel('husband')
   }
 
+  const updateMemberName = (i: number, name: string) =>
+    setFamilyMembers((prev) => prev.map((m, j) => j === i ? { ...m, name } : m))
+
   const updateRelationship = (i: number, relationship: string) =>
     setFamilyMembers((prev) => prev.map((m, j) => j === i ? { ...m, relationship } : m))
 
@@ -71,7 +72,6 @@ export default function AccountPage() {
       name: name.trim() || user?.name,
       email: email.trim() || user?.email,
       phone,
-      address,
       dob,
       profilePhoto,
       familyMembers,
@@ -175,17 +175,6 @@ export default function AccountPage() {
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
-            {lang === 'en' ? 'Home Address' : 'Alamat Rumah'}
-          </label>
-          <Textarea
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder={lang === 'en' ? 'Enter your home address' : 'Masukkan alamat rumah anda'}
-            rows={3}
-          />
-        </div>
       </div>
 
       {/* Family members */}
@@ -205,7 +194,11 @@ export default function AccountPage() {
               <div key={i} className="flex items-center gap-2 rounded-xl bg-gray-50 p-2">
                 <User className="h-4 w-4 text-gray-400 shrink-0 ml-1" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-800 truncate">{m.name}</div>
+                  <Input
+                    value={m.name}
+                    onChange={(e) => updateMemberName(i, e.target.value)}
+                    className="h-8 text-sm mb-1"
+                  />
                   <select
                     value={m.relationship}
                     onChange={(e) => updateRelationship(i, e.target.value)}
