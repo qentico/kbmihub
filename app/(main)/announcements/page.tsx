@@ -1,0 +1,247 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, Pin, Heart, Send, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useLang } from '@/lib/language-context'
+import { useAuth } from '@/lib/auth-context'
+import { useData } from '@/lib/data-context'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Announcement, MediaItem, Comment } from '@/lib/mock-data'
+import { sanitizeHtml } from '@/lib/sanitize'
+
+function PostMedia({ media }: { media: MediaItem[] }) {
+  const [current, setCurrent] = useState(0)
+  if (!media || media.length === 0) return null
+  const item = media[current]
+  return (
+    <div className="relative w-full aspect-square bg-gray-100 select-none">
+      {item.type === 'image' ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.url} alt={item.caption || ''} className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <video src={item.url} className="h-full w-full object-cover" controls playsInline />
+      )}
+      {media.length > 1 && current > 0 && (
+        <button onClick={() => setCurrent(current - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      )}
+      {media.length > 1 && current < media.length - 1 && (
+        <button onClick={() => setCurrent(current + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+      {media.length > 1 && (
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+          {media.map((_, i) => (
+            <span key={i} className={`block rounded-full transition-all ${i === current ? 'h-1.5 w-4 bg-white' : 'h-1.5 w-1.5 bg-white/50'}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PostFull({
+  ann, authorPhoto, userId, userPhoto, userAvatar,
+  onToggleLike, onAddComment, lang, tr, users,
+}: {
+  ann: Announcement
+  authorPhoto?: string
+  userId: string
+  userPhoto?: string
+  userAvatar?: string
+  onToggleLike: (id: string) => void
+  onAddComment: (annId: string, comment: Comment) => void
+  lang: string
+  tr: ReturnType<typeof useLang>['tr']
+  users: ReturnType<typeof useData>['users']
+}) {
+  const [newComment, setNewComment] = useState('')
+  const liked = ann.likedBy.includes(userId)
+
+  const handleComment = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newComment.trim() || !userId) return
+    const comment: Comment = {
+      id: `c${Date.now()}`,
+      authorId: userId,
+      authorName: users.find(u => u.id === userId)?.name || '',
+      content: newComment.trim(),
+      createdAt: new Date().toISOString().slice(0, 10),
+    }
+    onAddComment(ann.id, comment)
+    setNewComment('')
+  }
+
+  return (
+    <article className="overflow-hidden rounded-2xl bg-white shadow-sm border border-gray-100">
+      {/* Author row */}
+      <div className="flex items-center gap-3 p-4 pb-3">
+        <Avatar className="h-10 w-10 shrink-0 bg-emerald-100">
+          {authorPhoto && <AvatarImage src={authorPhoto} />}
+          <AvatarFallback className="text-sm font-bold text-emerald-800">
+            {ann.authorName.split(' ').map(w => w[0]).join('').slice(0, 2)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-semibold text-gray-900">{ann.authorName}</span>
+            {ann.isPinned && (
+              <Badge className="bg-emerald-100 text-emerald-700 text-[10px] flex items-center gap-0.5 py-0 px-1.5 h-4">
+                <Pin className="h-2 w-2" />
+                {lang === 'en' ? 'Pinned' : 'Disematkan'}
+              </Badge>
+            )}
+          </div>
+          <div className="text-[11px] text-gray-400">{ann.createdAt}</div>
+        </div>
+      </div>
+
+      {/* Media */}
+      {ann.media.length > 0 && <PostMedia media={ann.media} />}
+
+      {/* Content */}
+      <div className="px-4 pt-3 pb-2">
+        <h3 className="text-base font-bold text-gray-900 mb-2 leading-snug">{ann.title}</h3>
+        {ann.htmlContent ? (
+          <div
+            className="prose prose-sm max-w-none text-gray-700 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(ann.htmlContent) }}
+          />
+        ) : ann.content ? (
+          <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{ann.content}</p>
+        ) : null}
+      </div>
+
+      {/* Like row */}
+      <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-100">
+        <button
+          onClick={() => onToggleLike(ann.id)}
+          className={`flex items-center gap-1.5 text-sm transition-colors ${liked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}
+        >
+          <Heart className={`h-5 w-5 ${liked ? 'fill-red-500' : ''}`} />
+          {ann.likedBy.length > 0 && <span className="text-xs font-medium">{ann.likedBy.length}</span>}
+          <span className="text-xs">{liked ? (lang === 'en' ? 'Liked' : 'Disukai') : 'Like'}</span>
+        </button>
+        <span className="text-xs text-gray-400">{ann.comments.length} {tr.comments}</span>
+      </div>
+
+      {/* Comments */}
+      {ann.comments.length > 0 && (
+        <div className="px-4 pb-3 space-y-3 border-t border-gray-50 pt-3">
+          {ann.comments.map(c => {
+            const commenterPhoto = users.find(u => u.id === c.authorId)?.profilePhoto
+            return (
+              <div key={c.id} className="flex gap-2.5">
+                <Avatar className="h-7 w-7 shrink-0 bg-gray-100">
+                  {commenterPhoto && <AvatarImage src={commenterPhoto} />}
+                  <AvatarFallback className="text-[10px] font-semibold text-gray-600">
+                    {c.authorName.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 rounded-2xl bg-gray-50 px-3 py-2">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>
+                    <span className="text-[10px] text-gray-400">{c.createdAt}</span>
+                  </div>
+                  <p className="text-xs text-gray-600 leading-relaxed">{c.content}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Comment form */}
+      <div className="px-4 pb-4 pt-2 border-t border-gray-100">
+        <form onSubmit={handleComment} className="flex gap-2 items-end">
+          <Avatar className="h-7 w-7 shrink-0 bg-emerald-100 mb-0.5">
+            {userPhoto && <AvatarImage src={userPhoto} />}
+            <AvatarFallback className="text-[10px] font-semibold text-emerald-800">{userAvatar}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <Textarea
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
+              placeholder={lang === 'en' ? 'Write a comment…' : 'Tulis komen…'}
+              rows={1}
+              className="resize-none text-sm"
+            />
+          </div>
+          <Button type="submit" size="sm" className="mb-0.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3">
+            <Send className="h-3.5 w-3.5" />
+          </Button>
+        </form>
+      </div>
+    </article>
+  )
+}
+
+export default function AnnouncementsPage() {
+  const { tr, lang } = useLang()
+  const { user } = useAuth()
+  const { announcements, users, toggleLike, addComment, addAuditEntry } = useData()
+
+  const sorted = [...announcements].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+
+  const handleAddComment = (annId: string, comment: Comment) => {
+    const ann = announcements.find(a => a.id === annId)
+    addComment(annId, comment)
+    if (ann) addAuditEntry(`Commented on announcement: "${ann.title}"`, user?.name || '', 'Announcement')
+  }
+
+  return (
+    <div className="-mx-4">
+      {/* Header */}
+      <div className="bg-[#2D1B5E] mx-0 px-6 pt-6 pb-8 rounded-b-3xl overflow-hidden relative mb-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/bulletin.png" alt="" className="absolute right-0 top-0 h-36 w-auto object-cover object-top pointer-events-none" />
+        <div className="relative z-10 flex items-center gap-3">
+          <Link href="/family" className="text-white/70 hover:text-white shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div>
+            <h2 className="text-2xl font-black text-white">{tr.announcements}</h2>
+            <p className="text-sm text-violet-300 mt-0.5">
+              {lang === 'en' ? 'Latest updates from the family' : 'Kemas kini terkini'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Feed */}
+      {sorted.length === 0 ? (
+        <div className="py-16 text-center text-sm text-gray-400 px-4">
+          {lang === 'en' ? 'No announcements yet.' : 'Tiada pengumuman lagi.'}
+        </div>
+      ) : (
+        <div className="px-4 space-y-4 pb-4">
+          {sorted.map(ann => (
+            <PostFull
+              key={ann.id}
+              ann={ann}
+              authorPhoto={users.find(u => u.id === ann.authorId)?.profilePhoto}
+              userId={user?.id ?? ''}
+              userPhoto={user?.profilePhoto}
+              userAvatar={user?.avatar}
+              onToggleLike={id => user && toggleLike(id, user.id)}
+              onAddComment={handleAddComment}
+              lang={lang}
+              tr={tr}
+              users={users}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
