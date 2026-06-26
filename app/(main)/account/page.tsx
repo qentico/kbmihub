@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Camera, Plus, Trash2, CheckCircle, User } from 'lucide-react'
+import { ArrowLeft, Camera, Plus, Trash2, CheckCircle, User, KeyRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useLang } from '@/lib/language-context'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -40,6 +41,34 @@ export default function AccountPage() {
   const [newName, setNewName] = useState('')
   const [newRel, setNewRel] = useState('husband')
   const [saved, setSaved] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState(false)
+
+  const handleChangePassword = async () => {
+    setPwError('')
+    if (newPassword.length < 8) {
+      setPwError(lang === 'en' ? 'Password must be at least 8 characters.' : 'Kata laluan mesti sekurang-kurangnya 8 aksara.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError(lang === 'en' ? 'Passwords do not match.' : 'Kata laluan tidak sepadan.')
+      return
+    }
+    setPwLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setPwLoading(false)
+    if (error) {
+      setPwError(error.message)
+    } else {
+      setPwSuccess(true)
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => setPwSuccess(false), 3000)
+    }
+  }
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -175,6 +204,58 @@ export default function AccountPage() {
           />
         </div>
 
+      </div>
+
+      {/* Change password */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 space-y-3">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-gray-400" />
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            {lang === 'en' ? 'Change Password' : 'Tukar Kata Laluan'}
+          </h3>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            {lang === 'en' ? 'New Password' : 'Kata Laluan Baru'}
+          </label>
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder={lang === 'en' ? 'At least 8 characters' : 'Sekurang-kurangnya 8 aksara'}
+            className="h-11"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            {lang === 'en' ? 'Confirm New Password' : 'Sahkan Kata Laluan Baru'}
+          </label>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder={lang === 'en' ? 'Repeat new password' : 'Ulang kata laluan baru'}
+            className="h-11"
+          />
+        </div>
+        {pwError && (
+          <p className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-600">{pwError}</p>
+        )}
+        {pwSuccess && (
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <CheckCircle className="h-3.5 w-3.5" />
+            {lang === 'en' ? 'Password updated successfully!' : 'Kata laluan berjaya dikemaskini!'}
+          </div>
+        )}
+        <Button
+          onClick={handleChangePassword}
+          disabled={pwLoading || !newPassword || !confirmPassword}
+          className="w-full h-11 bg-violet-700 hover:bg-violet-800 text-white"
+        >
+          {pwLoading
+            ? (lang === 'en' ? 'Updating…' : 'Mengemaskini…')
+            : (lang === 'en' ? 'Update Password' : 'Kemaskini Kata Laluan')}
+        </Button>
       </div>
 
       {/* Family members */}
