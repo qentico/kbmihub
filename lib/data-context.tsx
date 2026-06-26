@@ -77,6 +77,7 @@ interface DataContextValue {
   addExcoMember: (member: Omit<ExcoMember, 'id'>) => void
   updateExcoMember: (id: string, updates: Partial<Omit<ExcoMember, 'id'>>) => void
   deleteExcoMember: (id: string) => void
+  reorderExcoMembers: (fromIndex: number, toIndex: number) => void
 
   auditLog: AuditEntry[]
   addAuditEntry: (activity: string, initiatedBy: string, category: AuditCategory) => void
@@ -248,7 +249,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (data) setChats(data.map(mapChat))
   }
   const fetchExco = async () => {
-    const { data } = await supabase.from('exco_members').select('*')
+    const { data } = await supabase.from('exco_members').select('*').order('sort_order')
     if (data) setExcoMembers(data.map(mapExco))
   }
   const fetchExcoTerm = async () => {
@@ -560,6 +561,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setExcoMembers((prev) => prev.filter((m) => m.id !== id))
     await supabase.from('exco_members').delete().eq('id', id)
   }
+  const reorderExcoMembers = async (fromIndex: number, toIndex: number) => {
+    const reordered = [...excoMembers]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(toIndex, 0, moved)
+    const updated = reordered.map((m, i) => ({ ...m, sortOrder: i }))
+    setExcoMembers(updated)
+    await Promise.all(updated.map((m) => supabase.from('exco_members').update({ sort_order: m.sortOrder ?? 0 }).eq('id', m.id)))
+  }
   const setExcoTerm = async (term: string) => {
     await supabase.from('app_config').upsert({ key: 'exco_term', value: term })
     setExcoTermState(term)
@@ -652,7 +661,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listings, addListing, deleteListing, pushExpiryNotification, toggleListingRead,
       chats, addChat, updateChat, deleteChat, reorderChats,
       financeStats, setFinanceStats,
-      excoMembers, excoTerm, setExcoTerm, addExcoMember, updateExcoMember, deleteExcoMember,
+      excoMembers, excoTerm, setExcoTerm, addExcoMember, updateExcoMember, deleteExcoMember, reorderExcoMembers,
       auditLog, addAuditEntry,
       polls, addPoll, updatePoll, deletePoll, votePoll,
       welcomeMessage, saveWelcomeMessage,

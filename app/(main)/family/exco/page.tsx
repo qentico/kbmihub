@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, X, Check, ChevronUp, ChevronDown } from 'lucide-react'
 import { useLang } from '@/lib/language-context'
 import { useAuth } from '@/lib/auth-context'
 import { useData } from '@/lib/data-context'
@@ -20,7 +20,7 @@ function initials(name: string) {
 export default function ExcoPage() {
   const { tr } = useLang()
   const { user } = useAuth()
-  const { excoMembers, excoTerm, setExcoTerm, addExcoMember, updateExcoMember, deleteExcoMember } = useData()
+  const { excoMembers, excoTerm, setExcoTerm, addExcoMember, updateExcoMember, deleteExcoMember, reorderExcoMembers } = useData()
 
   const isSuperAdmin = user?.role === 'super_admin'
 
@@ -133,17 +133,30 @@ export default function ExcoPage() {
             {editingId === member.id ? (
               <MemberForm form={form} setForm={setForm} onSave={handleSave} onCancel={handleCancel} title="Edit Member" />
             ) : (
-              <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
-                <div className="relative shrink-0">
-                  <Avatar className="h-14 w-14 bg-emerald-100">
-                    <AvatarFallback className="text-base font-semibold text-emerald-800">
-                      {member.avatar}
-                    </AvatarFallback>
-                  </Avatar>
-                  {index === 0 && (
-                    <span className="absolute -top-1 -right-1 text-base">👑</span>
-                  )}
-                </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
+                {isSuperAdmin && (
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      onClick={() => reorderExcoMembers(index, index - 1)}
+                      disabled={index === 0}
+                      className="p-1 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-20 disabled:pointer-events-none"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => reorderExcoMembers(index, index + 1)}
+                      disabled={index === excoMembers.length - 1}
+                      className="p-1 rounded-md text-gray-300 hover:text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-20 disabled:pointer-events-none"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+                <Avatar className="h-14 w-14 bg-emerald-100 shrink-0">
+                  <AvatarFallback className="text-base font-semibold text-emerald-800">
+                    {member.avatar}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-gray-900">{member.name}</div>
                   <div className="text-sm font-medium text-emerald-700">{member.position}</div>
