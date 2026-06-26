@@ -544,7 +544,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Exco ─────────────────────────────────────────────────────────────────────
   const addExcoMember = async (member: Omit<ExcoMember, 'id'>) => {
-    const { data } = await supabase.from('exco_members').insert({ user_id: member.userId, name: member.name, position: member.position, avatar: member.avatar, since: member.since }).select().single()
+    const { data } = await supabase.from('exco_members').insert({ user_id: member.userId || null, name: member.name, position: member.position, avatar: member.avatar, since: member.since }).select().single()
     if (data) setExcoMembers((prev) => [...prev, mapExco(data)])
   }
   const updateExcoMember = async (id: string, updates: Partial<Omit<ExcoMember, 'id'>>) => {
