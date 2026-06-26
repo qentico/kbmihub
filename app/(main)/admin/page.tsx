@@ -8,12 +8,14 @@ import {
   Pencil, Trash2, Plus, Pin, PinOff, Crown,
   Receipt, TrendingUp, TrendingDown, Wallet, Phone, MessageSquare,
   MapPin, Mail, Cake, UserCircle, Download, FileSpreadsheet, ClipboardList,
+  KeyRound, Copy, CheckCheck,
 } from 'lucide-react'
 import { useLang } from '@/lib/language-context'
 import { useAuth } from '@/lib/auth-context'
 import { useData } from '@/lib/data-context'
 import { supabase } from '@/lib/supabase'
 import { Announcement, Event, MediaItem, ContributionDrive, Expense, FeedbackItem, User, Poll, PollOption, computeScores } from '@/lib/mock-data'
+import { PasswordResetRequest } from '@/lib/data-context'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -65,6 +67,7 @@ export default function AdminPage() {
     polls, addPoll, updatePoll, deletePoll,
     financeStats, setFinanceStats,
     auditLog, addAuditEntry,
+    passwordResetRequests, removeResetRequest, dismissResetRequest,
   } = useData()
   const searchParams = useSearchParams()
 
@@ -121,6 +124,43 @@ export default function AdminPage() {
 
   const isSuperAdmin = user?.role === 'super_admin'
   const isAdmin      = user?.role === 'admin' || isSuperAdmin
+
+  // Password reset request state
+  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [tempPasswordResult, setTempPasswordResult] = useState<{ name: string; email: string; password: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleSetTempPassword = async (req: PasswordResetRequest) => {
+    setResettingId(req.id)
+    const { data: { session } } = await supabase.auth.getSession()
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ requestId: req.id, email: req.email }),
+      })
+      const data = await res.json()
+      if (data.tempPassword) {
+        setTempPasswordResult({ name: req.name || req.email, email: req.email, password: data.tempPassword })
+        removeResetRequest(req.id)
+        addAuditEntry(`Reset password for ${req.email}`, user?.name || '', 'User')
+      } else {
+        alert(data.error || 'Failed to reset password.')
+      }
+    } catch {
+      alert('Network error. Please try again.')
+    }
+    setResettingId(null)
+  }
+
+  const copyTempPassword = (pw: string) => {
+    navigator.clipboard.writeText(pw)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     const t = searchParams.get('tab') as Tab | null
@@ -647,8 +687,95 @@ export default function AdminPage() {
       )}
 
       {/* ── USERS ──────────────────────────────────────────────────────────── */}
+      {/* ── Temp password result dialog ─────────────────────────────────────── */}
+      {tempPasswordResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-xs rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100">
+                <KeyRound className="h-4 w-4 text-emerald-700" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">{lang === 'en' ? 'Temp Password Set' : 'Kata Laluan Sementara Ditetapkan'}</p>
+                <p className="text-xs text-gray-400">{tempPasswordResult.name}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              {lang === 'en' ? 'WhatsApp this to the user. Ask them to change it after logging in.' : 'WhatsApp ini kepada pengguna. Minta mereka tukar selepas log masuk.'}
+            </p>
+            <div className="flex items-center gap-2 rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 mb-4">
+              <span className="flex-1 font-mono font-bold text-gray-900 text-lg tracking-wider">{tempPasswordResult.password}</span>
+              <button
+                onClick={() => copyTempPassword(tempPasswordResult.password)}
+                className="flex items-center gap-1 rounded-lg bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-200 transition-colors"
+              >
+                {copied ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? (lang === 'en' ? 'Copied!' : 'Disalin!') : (lang === 'en' ? 'Copy' : 'Salin')}
+              </button>
+            </div>
+            <Button
+              onClick={() => { setTempPasswordResult(null); setCopied(false) }}
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
+            >
+              {lang === 'en' ? 'Done' : 'Selesai'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {tab === 'users' && (
         <div className="space-y-2">
+
+          {/* ── Password reset requests ── */}
+          {passwordResetRequests.length > 0 && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="text-sm font-semibold text-amber-800">
+                  {lang === 'en'
+                    ? `Password Reset Requests (${passwordResetRequests.length})`
+                    : `Permintaan Tetapan Semula (${passwordResetRequests.length})`}
+                </span>
+              </div>
+              {passwordResetRequests.map((req) => (
+                <div key={req.id} className="rounded-xl bg-white border border-amber-100 px-4 py-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{req.name || req.email}</p>
+                      <p className="text-xs text-gray-400">{req.email}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(req.createdAt).toLocaleString(lang === 'en' ? 'en-SG' : 'ms-MY', { dateStyle: 'short', timeStyle: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                  {req.message && (
+                    <p className="text-xs text-gray-500 italic border-l-2 border-amber-200 pl-2">"{req.message}"</p>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => dismissResetRequest(req.id)}
+                      className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+                    >
+                      {lang === 'en' ? 'Dismiss' : 'Abaikan'}
+                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => handleSetTempPassword(req)}
+                        disabled={resettingId === req.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60 transition-colors"
+                      >
+                        <KeyRound className="h-3 w-3" />
+                        {resettingId === req.id
+                          ? (lang === 'en' ? 'Setting…' : 'Menetapkan…')
+                          : (lang === 'en' ? 'Set Password' : 'Tetapkan Kata Laluan')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center justify-between pb-1">
             <p className="text-xs text-gray-400">
               {lang === 'en' ? 'Toggle the crown to mark a member as Head of Family.' : 'Togol mahkota untuk tandakan Ketua Keluarga.'}

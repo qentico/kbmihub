@@ -7,6 +7,14 @@ import {
   FeedbackItem, MarketplaceListing, GroupChat, ExcoMember, AuditEntry, AuditCategory, Poll,
 } from './mock-data'
 
+export interface PasswordResetRequest {
+  id: string
+  email: string
+  name: string | null
+  message: string | null
+  createdAt: string
+}
+
 interface DataContextValue {
   announcements: Announcement[]
   addAnnouncement: (ann: Omit<Announcement, 'id' | 'comments' | 'likedBy'>) => void
@@ -81,6 +89,10 @@ interface DataContextValue {
 
   welcomeMessage: { title: string; body: string } | null
   saveWelcomeMessage: (msg: { title: string; body: string } | null) => Promise<void>
+
+  passwordResetRequests: PasswordResetRequest[]
+  removeResetRequest: (id: string) => void
+  dismissResetRequest: (id: string) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -197,11 +209,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [polls, setPolls] = useState<Poll[]>([])
   const DEFAULT_WELCOME = { title: 'Welcome to KBMI Hub! 🏡', body: "We're so glad you're here.\n\nThis is your family's very own digital home. Whether you're here to catch up on the latest news, join an upcoming event, or simply stay close to the people who matter most — you belong here.\n\nWelcome home. Let's grow together." }
   const [welcomeMessage, setWelcomeMsgState] = useState<{ title: string; body: string } | null>(DEFAULT_WELCOME)
+  const [passwordResetRequests, setPasswordResetRequests] = useState<PasswordResetRequest[]>([])
 
   useEffect(() => {
     fetchAnnouncements(); fetchEvents(); fetchUsers(); fetchDrives()
     fetchFeedback(); fetchListings(); fetchChats(); fetchExco()
     fetchAuditLog(); fetchPolls(); fetchExcoTerm(); fetchWelcomeMessage()
+    fetchPasswordResetRequests()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetchers ────────────────────────────────────────────────────────────────
@@ -595,6 +609,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await fetchPolls()
   }
 
+  const fetchPasswordResetRequests = async () => {
+    const { data } = await supabase
+      .from('password_reset_requests')
+      .select('id, email, name, message, created_at')
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false })
+    if (data) setPasswordResetRequests(data.map((r) => ({
+      id: r.id, email: r.email, name: r.name, message: r.message, createdAt: r.created_at,
+    })))
+  }
+  const removeResetRequest = (id: string) => {
+    setPasswordResetRequests((prev) => prev.filter((r) => r.id !== id))
+  }
+  const dismissResetRequest = async (id: string) => {
+    setPasswordResetRequests((prev) => prev.filter((r) => r.id !== id))
+    await supabase.from('password_reset_requests').update({ resolved_at: new Date().toISOString() }).eq('id', id)
+  }
+
   const fetchWelcomeMessage = async () => {
     const { data } = await supabase.from('app_settings').select('value').eq('key', 'welcome_message').single()
     if (data) {
@@ -624,6 +656,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       auditLog, addAuditEntry,
       polls, addPoll, updatePoll, deletePoll, votePoll,
       welcomeMessage, saveWelcomeMessage,
+      passwordResetRequests, removeResetRequest, dismissResetRequest,
     }}>
       {children}
     </DataContext.Provider>
