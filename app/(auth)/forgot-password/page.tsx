@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 // Update this to the admin's WhatsApp number
-const ADMIN_WHATSAPP = '+601XXXXXXXXX'
+const ADMIN_WHATSAPP = '+6586688815'
 
 export default function ForgotPasswordPage() {
   const { lang } = useLang()
